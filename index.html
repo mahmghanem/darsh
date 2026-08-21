@@ -1,0 +1,2256 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>الدرش | مملكة السمك</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;700;800;900&family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
+<!-- Supabase: قاعدة بيانات سحابية دائمة تُبقي كل مدخلاتك محفوظة ويمكن الوصول لها من أي جهاز أو مكان -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --sea-deep:#052426;
+    --sea-mid:#0B4B4C;
+    --sea-glow:#22A499;
+    --foam:#BFE9E0;
+    --sand:#F4ECD8;
+    --sand-card:#FFFCF4;
+    --sand-dark:#E3D2A4;
+    --wood:#5B4127;
+    --coral:#E85D3B;
+    --coral-dark:#C24325;
+    --rope:#C79A3D;
+    --ink:#17231F;
+    --ink-soft:#5B6B63;
+    --success:#2F8F62;
+    --danger:#B23A2E;
+    --radius:16px;
+    --shadow:0 10px 30px rgba(5,36,38,.14);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Tajawal',sans-serif;
+    background:var(--sand);
+    color:var(--ink);
+    min-height:100vh;
+    overflow-x:hidden;
+  }
+  h1,h2,h3,.display{font-family:'Cairo',sans-serif;}
+  button{font-family:'Tajawal',sans-serif;cursor:pointer;border:none;}
+  input,select{font-family:'Tajawal',sans-serif;}
+
+  .view{display:none;}
+  .view.active{display:block;animation:fadeIn .35s ease;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+
+  /* ---------- HOME / HERO ---------- */
+  #view-home{padding:0;}
+  .hero{
+    position:relative;
+    min-height:100vh;
+    background:
+      radial-gradient(120% 90% at 50% -10%, #0D5A5A 0%, var(--sea-mid) 45%, var(--sea-deep) 100%);
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    padding:40px 20px 60px;
+  }
+  .hero .waves{
+    position:absolute;inset:0;bottom:0;
+    width:100%;height:100%;
+    opacity:.5;
+    pointer-events:none;
+  }
+  .hero .net{
+    position:absolute;inset:0;
+    background-image:
+      repeating-linear-gradient(45deg, rgba(191,233,224,.05) 0 1px, transparent 1px 34px),
+      repeating-linear-gradient(-45deg, rgba(191,233,224,.05) 0 1px, transparent 1px 34px);
+    pointer-events:none;
+  }
+  .fish-layer{position:absolute;inset:0;pointer-events:none;}
+  .fish{
+    position:absolute;
+    opacity:.9;
+    filter:drop-shadow(0 4px 10px rgba(0,0,0,.25));
+    animation-timing-function:ease-in-out;
+    animation-iteration-count:infinite;
+  }
+  .fish svg{display:block;width:100%;height:100%;}
+  .fish.f1{width:56px;height:34px;top:22%;animation:swim1 16s infinite linear;}
+  .fish.f2{width:38px;height:24px;top:58%;animation:swim2 12s infinite linear;animation-delay:-3s;}
+  .fish.f3{width:70px;height:42px;top:40%;animation:swim1 22s infinite linear;animation-delay:-9s;}
+  .fish.f4{width:30px;height:20px;top:74%;animation:swim2 9s infinite linear;animation-delay:-1s;}
+  .fish.f5{width:44px;height:28px;top:14%;animation:swim2 18s infinite linear;animation-delay:-6s;}
+  @keyframes swim1{
+    0%{transform:translateX(-10vw) translateY(0) scaleX(-1);}
+    48%{transform:translateX(55vw) translateY(-18px) scaleX(-1);}
+    50%{transform:translateX(58vw) translateY(-18px) scaleX(1);}
+    100%{transform:translateX(115vw) translateY(6px) scaleX(1);}
+  }
+  @keyframes swim2{
+    0%{transform:translateX(115vw) translateY(0) scaleX(1);}
+    48%{transform:translateX(45vw) translateY(14px) scaleX(1);}
+    50%{transform:translateX(42vw) translateY(14px) scaleX(-1);}
+    100%{transform:translateX(-15vw) translateY(-8px) scaleX(-1);}
+  }
+  .bubbles span{
+    position:absolute;bottom:-20px;border-radius:50%;
+    background:rgba(191,233,224,.25);
+    animation:rise linear infinite;
+  }
+  @keyframes rise{
+    0%{transform:translateY(0) translateX(0);opacity:0;}
+    10%{opacity:.7;}
+    100%{transform:translateY(-110vh) translateX(20px);opacity:0;}
+  }
+
+  .hero-content{position:relative;z-index:2;}
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:8px;
+    color:var(--foam);
+    letter-spacing:.15em;
+    font-size:13px;
+    background:rgba(191,233,224,.1);
+    border:1px solid rgba(191,233,224,.25);
+    padding:6px 18px;border-radius:999px;
+    margin-bottom:22px;
+  }
+  .brand-title{
+    color:#FBF6E9;
+    font-weight:900;
+    font-size:clamp(52px,11vw,110px);
+    line-height:1;
+    margin:0;
+    text-shadow:0 8px 30px rgba(0,0,0,.35);
+    letter-spacing:-1px;
+  }
+  .brand-sub{
+    color:var(--rope);
+    font-weight:800;
+    font-size:clamp(20px,3.4vw,32px);
+    margin:14px 0 6px;
+    letter-spacing:.04em;
+  }
+  .brand-tag{
+    color:var(--foam);
+    opacity:.8;
+    font-size:15px;
+    max-width:520px;
+    margin:0 auto 46px;
+    line-height:1.8;
+  }
+  .stamp-row{
+    display:flex;gap:20px;flex-wrap:wrap;justify-content:center;
+  }
+  .stamp-btn{
+    position:relative;
+    background:var(--sand-card);
+    color:var(--ink);
+    padding:22px 34px;
+    border-radius:14px;
+    min-width:220px;
+    text-align:right;
+    box-shadow:var(--shadow);
+    transform:rotate(-1.2deg);
+    transition:transform .2s ease, box-shadow .2s ease;
+    border:2px solid var(--sand-dark);
+  }
+  .stamp-btn:nth-child(2){transform:rotate(1.4deg);}
+  .stamp-btn:hover{transform:rotate(0) translateY(-4px);box-shadow:0 16px 34px rgba(5,36,38,.28);}
+  .stamp-btn .icon{
+    width:38px;height:38px;border-radius:10px;
+    background:var(--coral);color:#fff;
+    display:flex;align-items:center;justify-content:center;
+    margin-bottom:12px;font-size:18px;
+  }
+  .stamp-btn .label{font-family:'Cairo',sans-serif;font-weight:800;font-size:18px;display:block;}
+  .stamp-btn .hint{font-size:12.5px;color:var(--ink-soft);display:block;margin-top:3px;}
+  .stamp-btn:disabled{opacity:.45;cursor:not-allowed;}
+  .more-note{
+    margin-top:30px;color:var(--foam);opacity:.55;font-size:12.5px;
+  }
+
+  /* ---------- SHARED PAGE CHROME ---------- */
+  .page{
+    max-width:920px;margin:0 auto;padding:26px 20px 80px;
+  }
+  .page-header{
+    display:flex;align-items:center;gap:14px;margin-bottom:22px;
+    padding-top:10px;
+  }
+  .back-btn{
+    background:var(--sand-card);
+    border:1px solid var(--sand-dark);
+    width:42px;height:42px;border-radius:12px;
+    display:flex;align-items:center;justify-content:center;
+    font-size:18px;color:var(--sea-mid);
+    box-shadow:0 3px 8px rgba(5,36,38,.08);
+  }
+  .back-btn:hover{background:var(--sand-dark);}
+  .page-title{margin:0;font-size:26px;font-weight:800;color:var(--sea-deep);}
+  .page-title small{display:block;font-family:'Tajawal';font-weight:500;font-size:13px;color:var(--ink-soft);margin-top:2px;}
+
+  .card{
+    background:var(--sand-card);
+    border:1px solid var(--sand-dark);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:26px;
+  }
+
+  /* ---------- FORM ---------- */
+  .field{margin-bottom:18px;}
+  .field label{display:block;font-size:13.5px;font-weight:700;color:var(--ink-soft);margin-bottom:7px;}
+  .field input, .field select{
+    width:100%;padding:13px 14px;border-radius:10px;
+    border:1.5px solid var(--sand-dark);
+    background:#fff;font-size:15px;color:var(--ink);
+    outline:none;transition:border-color .15s;
+  }
+  .field input:focus, .field select:focus{border-color:var(--sea-glow);}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media(max-width:560px){.row2{grid-template-columns:1fr;}}
+
+  .amount-box{
+    display:flex;align-items:center;justify-content:space-between;
+    background:linear-gradient(135deg, var(--sea-mid), var(--sea-deep));
+    color:#fff;border-radius:12px;padding:16px 20px;margin:8px 0 20px;
+  }
+  .amount-box .amt-label{font-size:13px;opacity:.75;}
+  .amount-box .amt-value{font-family:'Cairo';font-weight:800;font-size:26px;}
+  .btn{
+    padding:13px 22px;border-radius:10px;font-weight:700;font-size:15px;
+    transition:transform .12s, box-shadow .12s;
+  }
+  .btn:active{transform:scale(.97);}
+  .btn-ghost{background:#fff;color:var(--sea-mid);border:1.5px solid var(--sand-dark);}
+  .btn-ghost:hover{background:var(--sand);}
+  .btn-primary{background:var(--coral);color:#fff;box-shadow:0 8px 18px rgba(232,93,59,.35);}
+  .btn-primary:hover{background:var(--coral-dark);}
+  .btn-block{width:100%;}
+  .btn-row{display:flex;gap:12px;flex-wrap:wrap;}
+
+  /* ---------- ARCHIVE LIST ---------- */
+  .date-card{
+    display:flex;align-items:center;justify-content:space-between;
+    background:var(--sand-card);border:1px solid var(--sand-dark);
+    border-radius:14px;padding:18px 20px;margin-bottom:12px;
+    box-shadow:0 4px 12px rgba(5,36,38,.06);
+    transition:transform .15s, box-shadow .15s;
+  }
+  .date-card:hover{transform:translateY(-2px);box-shadow:0 10px 22px rgba(5,36,38,.12);}
+  .date-card .d-left{display:flex;align-items:center;gap:14px;}
+  .date-badge{
+    width:52px;height:52px;border-radius:12px;
+    background:var(--sea-deep);color:var(--foam);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    font-family:'Cairo';font-weight:800;line-height:1;
+  }
+  .date-badge .dd{font-size:18px;}
+  .date-badge .mm{font-size:10px;opacity:.75;}
+  .d-day{font-weight:800;font-size:15.5px;color:var(--ink);}
+  .d-count{font-size:12.5px;color:var(--ink-soft);margin-top:2px;}
+  .d-total{font-family:'Cairo';font-weight:800;color:var(--sea-mid);font-size:17px;}
+  .chev{color:var(--ink-soft);font-size:18px;margin-right:6px;}
+  .empty-state{
+    text-align:center;padding:60px 20px;color:var(--ink-soft);
+  }
+  .empty-state .ico{font-size:44px;margin-bottom:14px;}
+
+  /* ---------- DETAIL TABLE ---------- */
+  .grand-total{
+    display:flex;justify-content:space-between;align-items:center;
+    background:var(--sea-deep);color:#fff;border-radius:14px;
+    padding:18px 22px;margin-bottom:20px;
+  }
+  .grand-total .gt-label{font-size:14px;opacity:.8;}
+  .grand-total .gt-value{font-family:'Cairo';font-weight:900;font-size:28px;color:var(--rope);}
+
+  table{width:100%;border-collapse:collapse;font-size:14.5px;}
+  thead th{
+    text-align:right;padding:12px 10px;
+    background:var(--sea-mid);color:#fff;font-weight:700;font-size:13px;
+  }
+  thead th:first-child{border-radius:10px 0 0 0;}
+  thead th:last-child{border-radius:0 10px 0 0;}
+  tbody td{padding:13px 10px;border-bottom:1px solid var(--sand-dark);}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:#FBF6E9;}
+  td.num{font-family:'Cairo';font-weight:700;}
+
+  /* merchant group header row inside detail table */
+  tr.merchant-row td{
+    background:var(--sea-deep);border-bottom:none;padding:10px 12px;
+  }
+  tr.merchant-row:hover td{background:var(--sea-deep);}
+  .merchant-header-cell{
+    display:flex;align-items:center;justify-content:space-between;
+    color:#fff;
+  }
+  .merchant-name-tag{font-family:'Cairo';font-weight:800;font-size:14.5px;color:var(--foam);}
+  .merchant-subtotal{font-family:'Cairo';font-weight:700;font-size:13px;color:var(--rope);}
+
+  /* live "items added today for this merchant" preview on purchases page */
+  .mini-items-box{
+    border:1.5px dashed var(--sand-dark);border-radius:10px;
+    padding:12px 14px;margin-bottom:18px;background:#FBF6E9;
+  }
+  .mini-items-box .mib-title{font-size:12.5px;font-weight:700;color:var(--ink-soft);margin-bottom:8px;}
+  .mini-item-row{
+    display:flex;align-items:center;justify-content:space-between;
+    font-size:13.5px;padding:6px 0;border-bottom:1px dashed var(--sand-dark);
+  }
+  .mini-item-row:last-child{border-bottom:none;}
+  .mini-item-row .mi-type{font-weight:700;color:var(--ink);}
+  .mini-item-row .mi-qp{color:var(--ink-soft);}
+  .mini-item-row .mi-amt{font-family:'Cairo';font-weight:800;color:var(--sea-mid);}
+  .row-actions{display:flex;gap:8px;}
+  .icon-btn{
+    width:32px;height:32px;border-radius:8px;
+    display:flex;align-items:center;justify-content:center;
+    font-size:14px;background:var(--sand);border:1px solid var(--sand-dark);color:var(--ink-soft);
+  }
+  .icon-btn.edit:hover{background:#E8F3EC;color:var(--success);border-color:var(--success);}
+  .icon-btn.del:hover{background:#FBE9E6;color:var(--danger);border-color:var(--danger);}
+  .table-wrap{overflow-x:auto;border-radius:12px;}
+
+  /* ---------- MODAL ---------- */
+  .modal-overlay{
+    display:none;position:fixed;inset:0;background:rgba(5,20,20,.55);
+    align-items:center;justify-content:center;z-index:100;padding:20px;
+    backdrop-filter:blur(2px);
+  }
+  .modal-overlay.active{display:flex;}
+  .modal-box{
+    background:var(--sand-card);border-radius:16px;padding:26px;
+    max-width:420px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,.35);
+    animation:pop .2s ease;
+  }
+  @keyframes pop{from{transform:scale(.94);opacity:0;}to{transform:scale(1);opacity:1;}}
+  .modal-box h3{margin:0 0 6px;font-size:19px;color:var(--sea-deep);}
+  .modal-box p{color:var(--ink-soft);font-size:14px;margin:0 0 20px;line-height:1.7;}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:8px;}
+
+  /* ---------- TOAST ---------- */
+  #toast{
+    position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--sea-deep);color:#fff;padding:14px 24px;border-radius:12px;
+    font-size:14.5px;font-weight:700;box-shadow:0 10px 30px rgba(0,0,0,.3);
+    display:flex;align-items:center;gap:10px;
+    opacity:0;pointer-events:none;transition:all .3s ease;z-index:200;
+  }
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  #toast .tick{
+    width:20px;height:20px;border-radius:50%;background:var(--success);
+    display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;
+  }
+
+  /* ---------- SALES / GRILL / STOCK ---------- */
+  .stock-hint{
+    font-size:12.5px;color:var(--sea-mid);font-weight:700;margin-top:-10px;margin-bottom:16px;
+    display:flex;align-items:center;gap:6px;
+  }
+  .stock-hint.low{color:var(--danger);}
+  .checkbox-field{
+    display:flex;align-items:center;gap:10px;
+    background:#FBF6E9;border:1.5px dashed var(--sand-dark);border-radius:10px;
+    padding:13px 14px;margin-bottom:14px;cursor:pointer;user-select:none;
+  }
+  .checkbox-field input[type="checkbox"]{
+    width:20px;height:20px;accent-color:var(--coral);cursor:pointer;flex-shrink:0;
+  }
+  .checkbox-field .cb-label{font-weight:800;font-size:15px;color:var(--ink);}
+  .checkbox-field .cb-icon{font-size:18px;}
+  #grill-fields{
+    border-right:3px solid var(--coral);padding-right:14px;margin-bottom:6px;
+    animation:fadeIn .25s ease;
+  }
+  .grill-note{
+    font-size:11.5px;background:#FBEAE3;color:var(--coral-dark);
+    display:inline-block;padding:2px 8px;border-radius:6px;margin-top:4px;font-weight:700;
+  }
+
+  /* ---------- INVENTORY (الجرد) ---------- */
+  .inv-badge{
+    display:inline-flex;align-items:center;gap:5px;
+    font-size:11.5px;font-weight:800;padding:3px 10px;border-radius:999px;
+  }
+  .inv-badge.pending{background:#FBEAE3;color:var(--coral-dark);}
+  .inv-badge.ok{background:#E8F3EC;color:var(--success);}
+  .inv-row-actions{display:flex;gap:8px;flex-wrap:wrap;}
+  .btn-mini{
+    padding:8px 14px;border-radius:8px;font-weight:700;font-size:12.5px;
+  }
+  .btn-mini.roll{background:var(--sea-mid);color:#fff;}
+  .btn-mini.roll:hover{background:var(--sea-deep);}
+  .btn-mini.destroy{background:#fff;color:var(--danger);border:1.5px solid var(--danger);}
+  .btn-mini.destroy:hover{background:#FBE9E6;}
+  .status-pill{
+    font-size:12px;font-weight:700;padding:5px 12px;border-radius:999px;display:inline-block;
+  }
+  .status-pill.rolled{background:#E8F0FB;color:var(--sea-mid);}
+  .status-pill.destroyed{background:#FBE9E6;color:var(--danger);}
+  .status-pill.matched{background:#E8F3EC;color:var(--success);}
+  .inv-type-name{font-weight:800;color:var(--ink);}
+  .inv-sub{font-size:11.5px;color:var(--ink-soft);margin-top:2px;}
+
+  /* ---------- PAYMENT TYPE (سداد/سداد جزئي/دين) ---------- */
+  #partial-payment-field{
+    border-right:3px solid var(--rope);padding-right:14px;margin-bottom:6px;
+    animation:fadeIn .25s ease;
+  }
+
+  /* ---------- PAYMENTS PAGE (صفحة السداد) ---------- */
+  .sub-title{
+    font-family:'Cairo',sans-serif;font-weight:800;font-size:16px;
+    color:var(--sea-deep);margin:26px 0 12px;display:flex;align-items:center;gap:8px;
+  }
+  .sub-title:first-of-type{margin-top:0;}
+  .pay-kind-pill{
+    font-size:11px;font-weight:800;padding:3px 10px;border-radius:999px;display:inline-block;
+  }
+  .pay-kind-pill.full{background:#E8F3EC;color:var(--success);}
+  .pay-kind-pill.partial{background:#FFF6E0;color:#946A0E;}
+  .cell-sub{font-size:11.5px;color:var(--ink-soft);margin-top:2px;}
+  .cell-date-day{font-size:11.5px;color:var(--ink-soft);}
+
+  /* ---------- DEBTS PAGE (صفحة الدين) ---------- */
+  .debt-card{
+    background:var(--sand-card);border:1px solid var(--sand-dark);
+    border-radius:14px;padding:18px 20px;margin-bottom:12px;
+    box-shadow:0 4px 12px rgba(5,36,38,.06);
+  }
+  .debt-card-top{
+    display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:12px;
+  }
+  .debt-customer{font-weight:800;font-size:16px;color:var(--ink);}
+  .debt-item{font-size:13px;color:var(--ink-soft);margin-top:4px;}
+  .debt-date{font-size:11.5px;color:var(--ink-soft);margin-top:5px;opacity:.85;}
+  .debt-amount{font-family:'Cairo';font-weight:900;font-size:19px;color:var(--danger);white-space:nowrap;}
+  .debt-kind-pill{
+    font-size:11px;font-weight:800;padding:3px 10px;border-radius:999px;
+    display:inline-block;margin-top:8px;
+  }
+  .debt-kind-pill.debt{background:#FBEAE3;color:var(--danger);}
+  .debt-kind-pill.partial{background:#FFF6E0;color:#946A0E;}
+  .debt-settle-form{
+    border-top:1.5px dashed var(--sand-dark);margin-top:14px;padding-top:14px;
+    animation:fadeIn .25s ease;
+  }
+  .btn-mini.settle{background:var(--coral);color:#fff;}
+  .btn-mini.settle:hover{background:var(--coral-dark);}
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ================= HOME ================= -->
+  <section id="view-home" class="view active">
+    <div class="hero">
+      <div class="net"></div>
+      <svg class="waves" viewBox="0 0 1440 500" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+        <path fill="#0F5C5A" opacity="0.55" d="M0,320 C240,380 480,260 720,300 C960,340 1200,420 1440,340 L1440,500 L0,500 Z"></path>
+        <path fill="#0A3E3E" opacity="0.6" d="M0,380 C260,340 500,420 760,390 C1000,362 1220,300 1440,380 L1440,500 L0,500 Z"></path>
+      </svg>
+      <div class="fish-layer">
+        <div class="fish f1"><svg viewBox="0 0 64 40"><path d="M4 20 C14 4, 40 4, 54 14 L64 6 L58 20 L64 34 L54 26 C40 36, 14 36, 4 20 Z" fill="#F2A65A"/><circle cx="46" cy="16" r="2" fill="#052426"/></svg></div>
+        <div class="fish f2"><svg viewBox="0 0 64 40"><path d="M4 20 C14 4, 40 4, 54 14 L64 6 L58 20 L64 34 L54 26 C40 36, 14 36, 4 20 Z" fill="#7FD9C4"/><circle cx="46" cy="16" r="2" fill="#052426"/></svg></div>
+        <div class="fish f3"><svg viewBox="0 0 64 40"><path d="M4 20 C14 4, 40 4, 54 14 L64 6 L58 20 L64 34 L54 26 C40 36, 14 36, 4 20 Z" fill="#E85D3B"/><circle cx="46" cy="16" r="2" fill="#052426"/></svg></div>
+        <div class="fish f4"><svg viewBox="0 0 64 40"><path d="M4 20 C14 4, 40 4, 54 14 L64 6 L58 20 L64 34 L54 26 C40 36, 14 36, 4 20 Z" fill="#C79A3D"/><circle cx="46" cy="16" r="2" fill="#052426"/></svg></div>
+        <div class="fish f5"><svg viewBox="0 0 64 40"><path d="M4 20 C14 4, 40 4, 54 14 L64 6 L58 20 L64 34 L54 26 C40 36, 14 36, 4 20 Z" fill="#F2A65A"/><circle cx="46" cy="16" r="2" fill="#052426"/></svg></div>
+      </div>
+      <div class="bubbles" id="bubbles"></div>
+
+      <div class="hero-content">
+        <div class="eyebrow">⚓ سوق السمك المحلي</div>
+        <h1 class="brand-title">الدرش</h1>
+        <div class="brand-sub">مملكة السمك</div>
+        <p class="brand-tag">إدارة مشتريات السمك اليومية من التجار، وأرشفة كاملة لكل صفقة بحسب التاريخ.</p>
+
+        <div class="stamp-row">
+          <button class="stamp-btn" onclick="goTo('purchases')">
+            <span class="icon">🧾</span>
+            <span class="label">صفحة المشتريات</span>
+            <span class="hint">تسجيل مشترى جديد من تاجر</span>
+          </button>
+          <button class="stamp-btn" onclick="goTo('archive')">
+            <span class="icon">📚</span>
+            <span class="label">أرشيف المشتريات</span>
+            <span class="hint">استعراض المشتريات حسب التاريخ</span>
+          </button>
+        </div>
+        <div class="stamp-row" style="margin-top:20px;">
+          <button class="stamp-btn" onclick="goTo('sales')">
+            <span class="icon">💰</span>
+            <span class="label">صفحة المبيعات</span>
+            <span class="hint">تسجيل عملية بيع جديدة لزبون</span>
+          </button>
+          <button class="stamp-btn" onclick="goTo('sales-archive')">
+            <span class="icon">📗</span>
+            <span class="label">أرشيف المبيعات</span>
+            <span class="hint">استعراض المبيعات حسب التاريخ</span>
+          </button>
+        </div>
+        <div class="stamp-row" style="margin-top:20px;">
+          <button class="stamp-btn" onclick="goTo('inventory')">
+            <span class="icon">📋</span>
+            <span class="label">صفحة الجرد</span>
+            <span class="hint">ترحيل أو إتلاف المتبقي يوميًا</span>
+          </button>
+        </div>
+        <div class="stamp-row" style="margin-top:20px;">
+          <button class="stamp-btn" onclick="goTo('payments')">
+            <span class="icon">✅</span>
+            <span class="label">صفحة السداد</span>
+            <span class="hint">أرشيف السداد الكامل والجزئي بالتاريخ</span>
+          </button>
+          <button class="stamp-btn" onclick="goTo('debts')">
+            <span class="icon">🧾</span>
+            <span class="label">صفحة الدين</span>
+            <span class="hint">متابعة ديون الزبائن وتسديدها</span>
+          </button>
+        </div>
+        <div class="more-note">سيتم إضافة صفحات أخرى هنا لاحقًا مع تطور المشروع</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= PURCHASES ================= -->
+  <section id="view-purchases" class="view">
+    <div class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="goTo('home')">→</button>
+        <h2 class="page-title">صفحة المشتريات<small id="purchase-date-line"></small></h2>
+      </div>
+
+      <div class="card">
+        <div class="field">
+          <label>اسم التاجر</label>
+          <input type="text" id="in-merchant" placeholder="اكتب اسم التاجر" oninput="onMerchantInput()">
+        </div>
+
+        <div id="today-items-box" class="mini-items-box" style="display:none;">
+          <div class="mib-title">أصناف "<span id="preview-merchant-name"></span>" المضافة اليوم لنفس التاجر</div>
+          <div id="today-items-list"></div>
+        </div>
+
+        <div class="field">
+          <label>الصنف</label>
+          <select id="in-type" onchange="onTypeChange()">
+            <option value="">اختر الصنف</option>
+          </select>
+        </div>
+
+        <div class="field" id="custom-type-field" style="display:none;">
+          <label>اكتب اسم الصنف</label>
+          <input type="text" id="in-type-custom" placeholder="اسم الصنف الآخر">
+        </div>
+
+        <div class="row2">
+          <div class="field">
+            <label>الكمية (ك)</label>
+            <input type="number" id="in-qty" placeholder="0" min="0" step="0.1" oninput="calcAmount()">
+          </div>
+          <div class="field">
+            <label>السعر (شيكل)</label>
+            <input type="number" id="in-price" placeholder="0" min="0" step="0.1" oninput="calcAmount()">
+          </div>
+        </div>
+
+        <div class="amount-box">
+          <span class="amt-label">المبلغ</span>
+          <span class="amt-value" id="amt-display">0 ₪</span>
+        </div>
+
+        <button class="btn btn-primary btn-block" onclick="addPurchase()">➕ إضافة الصنف لهذا التاجر</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= ARCHIVE LIST ================= -->
+  <section id="view-archive" class="view">
+    <div class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="goTo('home')">→</button>
+        <h2 class="page-title">أرشيف المشتريات<small>اضغط على أي تاريخ لعرض التفاصيل</small></h2>
+      </div>
+      <div id="archive-list"></div>
+    </div>
+  </section>
+
+  <!-- ================= ARCHIVE DETAIL ================= -->
+  <section id="view-archive-detail" class="view">
+    <div class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="goTo('archive')">→</button>
+        <h2 class="page-title" id="detail-title">تفاصيل اليوم</h2>
+      </div>
+
+      <div class="grand-total">
+        <span class="gt-label">إجمالي مشتريات هذا اليوم</span>
+        <span class="gt-value" id="detail-total">0 ₪</span>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>الصنف</th>
+                <th>الكمية</th>
+                <th>السعر</th>
+                <th>المبلغ</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="detail-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="detail-empty" class="empty-state" style="display:none;">
+        <div class="ico">🐟</div>
+        <div>لا توجد مشتريات مسجلة لهذا اليوم</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SALES ================= -->
+  <section id="view-sales" class="view">
+    <div class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="goTo('home')">→</button>
+        <h2 class="page-title">صفحة المبيعات<small id="sale-date-line"></small></h2>
+      </div>
+
+      <div class="card">
+        <div class="field">
+          <label>اسم الزبون</label>
+          <input type="text" id="in-customer" placeholder="اكتب اسم الزبون" oninput="onCustomerInput()">
+        </div>
+
+        <div id="today-customer-items-box" class="mini-items-box" style="display:none;">
+          <div class="mib-title">أصناف "<span id="preview-customer-name"></span>" المُباعة اليوم لنفس الزبون</div>
+          <div id="today-customer-items-list"></div>
+        </div>
+
+        <div class="field">
+          <label>الصنف <span style="font-weight:500;color:var(--ink-soft);">(حسب المتوفر من المشتريات)</span></label>
+          <select id="sale-type" onchange="onSaleTypeChange()">
+            <option value="">اختر الصنف</option>
+          </select>
+        </div>
+        <div class="stock-hint" id="sale-stock-hint"></div>
+
+        <div class="row2">
+          <div class="field">
+            <label>الكمية (ك)</label>
+            <input type="number" id="sale-qty" placeholder="0" min="0" step="0.1" oninput="calcSaleAmount()">
+          </div>
+          <div class="field">
+            <label>السعر (شيكل)</label>
+            <input type="number" id="sale-price" placeholder="0" min="0" step="0.1" oninput="calcSaleAmount()">
+          </div>
+        </div>
+
+        <label class="checkbox-field" for="sale-grill-check">
+          <input type="checkbox" id="sale-grill-check" onchange="onGrillToggle()">
+          <span class="cb-icon">🔥</span>
+          <span class="cb-label">مشوي؟</span>
+          <span style="font-size:12px;color:var(--ink-soft);font-weight:500;">أضف كمية وسعر الشوي إن رغب الزبون بشوي جزء من الطلب</span>
+        </label>
+
+        <div id="grill-fields" style="display:none;">
+          <div class="row2">
+            <div class="field">
+              <label>الكمية مشوي (ك)</label>
+              <input type="number" id="sale-grill-qty" placeholder="0" min="0" step="0.1" oninput="calcSaleAmount()">
+            </div>
+            <div class="field">
+              <label>سعر الشوي (شيكل/ك)</label>
+              <input type="number" id="sale-grill-price" placeholder="0" min="0" step="0.1" oninput="calcSaleAmount()">
+            </div>
+          </div>
+        </div>
+
+        <div class="amount-box">
+          <span class="amt-label">المبلغ</span>
+          <span class="amt-value" id="sale-amt-display">0 ₪</span>
+        </div>
+
+        <div class="field">
+          <label>نوع السداد</label>
+          <select id="sale-payment-type" onchange="onPaymentTypeChange()">
+            <option value="">اختر نوع السداد</option>
+            <option value="full">✅ سداد (دفع كامل المبلغ)</option>
+            <option value="partial">🟡 سداد جزئي</option>
+            <option value="debt">🔴 دين (بدون دفع الآن)</option>
+          </select>
+        </div>
+
+        <div class="field" id="partial-payment-field" style="display:none;">
+          <label>مبلغ السداد الجزئي</label>
+          <input type="number" id="sale-partial-amount" placeholder="0" min="0" step="0.1" oninput="calcSaleAmount()">
+          <div class="stock-hint" id="partial-remaining-hint"></div>
+        </div>
+
+        <button class="btn btn-primary btn-block" onclick="addSale()">➕ إضافة الصنف لهذا الزبون</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SALES ARCHIVE LIST ================= -->
+  <section id="view-sales-archive" class="view">
+    <div class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="goTo('home')">→</button>
+        <h2 class="page-title">أرشيف المبيعات<small>اضغط على أي تاريخ لعرض التفاصيل</small></h2>
+      </div>
+      <div id="sales-archive-list"></div>
+    </div>
+  </section>
+
+  <!-- ================= SALES ARCHIVE DETAIL ================= -->
+  <section id="view-sales-archive-detail" class="view">
+    <div class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="goTo('sales-archive')">→</button>
+        <h2 class="page-title" id="sales-detail-title">تفاصيل اليوم</h2>
+      </div>
+
+      <div class="grand-total">
+        <span class="gt-label">إجمالي مبيعات هذا اليوم</span>
+        <span class="gt-value" id="sales-detail-total">0 ₪</span>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>الصنف</th>
+                <th>الكمية</th>
+                <th>السعر</th>
+                <th>المبلغ</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="sales-detail-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="sales-detail-empty" class="empty-state" style="display:none;">
+        <div class="ico">💰</div>
+        <div>لا توجد مبيعات مسجلة لهذا اليوم</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= PAYMENTS (صفحة السداد) ================= -->
+  <section id="view-payments" class="view">
+    <div class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="goTo('home')">→</button>
+        <h2 class="page-title">صفحة السداد<small>كل عمليات السداد الكامل والجزئي موثّقة بالتاريخ</small></h2>
+      </div>
+
+      <div class="grand-total">
+        <span class="gt-label">إجمالي المبالغ المُسدَّدة</span>
+        <span class="gt-value" id="payments-grand-total">0 ₪</span>
+      </div>
+
+      <h3 class="sub-title">✅ زبائن السداد الكامل</h3>
+      <div class="card" style="padding:0;overflow:hidden;margin-bottom:10px;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>التاريخ</th>
+                <th>الزبون</th>
+                <th>تفاصيل العملية</th>
+                <th>المبلغ الكلي</th>
+                <th>المدفوع</th>
+              </tr>
+            </thead>
+            <tbody id="payments-full-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="payments-full-empty" class="empty-state" style="display:none;">
+        <div class="ico">✅</div>
+        <div>لا يوجد سداد كامل مسجل بعد</div>
+      </div>
+
+      <h3 class="sub-title">🟡 زبائن السداد الجزئي</h3>
+      <div class="card" style="padding:0;overflow:hidden;margin-bottom:10px;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>التاريخ</th>
+                <th>الزبون</th>
+                <th>تفاصيل العملية</th>
+                <th>المبلغ الكلي</th>
+                <th>المدفوع</th>
+              </tr>
+            </thead>
+            <tbody id="payments-partial-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="payments-partial-empty" class="empty-state" style="display:none;">
+        <div class="ico">🟡</div>
+        <div>لا يوجد سداد جزئي مسجل بعد</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= DEBTS (صفحة الدين) ================= -->
+  <section id="view-debts" class="view">
+    <div class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="goTo('home')">→</button>
+        <h2 class="page-title">صفحة الدين<small>ديون الزبائن الكاملة والجزئية، مع إمكانية السداد من هنا</small></h2>
+      </div>
+
+      <div class="grand-total">
+        <span class="gt-label">إجمالي الديون المتبقية</span>
+        <span class="gt-value" id="debts-grand-total">0 ₪</span>
+      </div>
+
+      <h3 class="sub-title">🔴 قائمة الدين (بدون أي سداد)</h3>
+      <div id="debts-full-list"></div>
+      <div id="debts-full-empty" class="empty-state" style="display:none;">
+        <div class="ico">🔴</div>
+        <div>لا يوجد زبائن دين حاليًا</div>
+      </div>
+
+      <h3 class="sub-title">🟡 قائمة السداد الجزئي (مبلغ متبقٍ)</h3>
+      <div id="debts-partial-list"></div>
+      <div id="debts-partial-empty" class="empty-state" style="display:none;">
+        <div class="ico">🟡</div>
+        <div>لا يوجد زبائن سداد جزئي متبقٍ حاليًا</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= INVENTORY (الجرد) LIST ================= -->
+  <section id="view-inventory" class="view">
+    <div class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="goTo('home')">→</button>
+        <h2 class="page-title">صفحة الجرد<small>قارن مشتريات اليوم بمبيعاته ورحّل أو أتلف المتبقي</small></h2>
+      </div>
+      <div id="inventory-list"></div>
+    </div>
+  </section>
+
+  <!-- ================= INVENTORY DETAIL ================= -->
+  <section id="view-inventory-detail" class="view">
+    <div class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="goTo('inventory')">→</button>
+        <h2 class="page-title" id="inventory-detail-title">جرد اليوم</h2>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>الصنف</th>
+                <th>مُشترى</th>
+                <th>مباع</th>
+                <th>المتبقي</th>
+                <th>الإجراء</th>
+              </tr>
+            </thead>
+            <tbody id="inventory-detail-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="inventory-detail-empty" class="empty-state" style="display:none;">
+        <div class="ico">📋</div>
+        <div>لا توجد حركة مشتريات أو مبيعات لهذا اليوم</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- EDIT MODAL -->
+<div class="modal-overlay" id="edit-overlay">
+  <div class="modal-box">
+    <h3>تعديل بيانات التاجر</h3>
+    <p>عدّل البيانات ثم اضغط حفظ التعديلات.</p>
+    <div class="field"><label>اسم التاجر</label><input type="text" id="edit-merchant"></div>
+    <div class="field">
+      <label>الصنف</label>
+      <select id="edit-type"></select>
+    </div>
+    <div class="row2">
+      <div class="field"><label>الكمية (ك)</label><input type="number" id="edit-qty" step="0.1"></div>
+      <div class="field"><label>السعر (شيكل)</label><input type="number" id="edit-price" step="0.1"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeEdit()">إلغاء</button>
+      <button class="btn btn-primary" onclick="saveEdit()">💾 حفظ التعديلات</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM DELETE MODAL -->
+<div class="modal-overlay" id="confirm-overlay">
+  <div class="modal-box">
+    <h3>تأكيد الحذف</h3>
+    <p id="confirm-text">هل أنت متأكد من حذف التاجر؟</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeConfirm()">لا</button>
+      <button class="btn btn-primary" style="background:var(--danger);box-shadow:0 8px 18px rgba(178,58,46,.35);" onclick="confirmDelete()">نعم، احذف</button>
+    </div>
+  </div>
+</div>
+
+<!-- SALE EDIT MODAL -->
+<div class="modal-overlay" id="sale-edit-overlay">
+  <div class="modal-box">
+    <h3>تعديل بيانات الزبون</h3>
+    <p>عدّل البيانات ثم اضغط حفظ التعديلات.</p>
+    <div class="field"><label>اسم الزبون</label><input type="text" id="sale-edit-customer"></div>
+    <div class="field">
+      <label>الصنف</label>
+      <select id="sale-edit-type"></select>
+    </div>
+    <div class="row2">
+      <div class="field"><label>الكمية (ك)</label><input type="number" id="sale-edit-qty" step="0.1"></div>
+      <div class="field"><label>السعر (شيكل)</label><input type="number" id="sale-edit-price" step="0.1"></div>
+    </div>
+    <label class="checkbox-field" for="sale-edit-grill-check">
+      <input type="checkbox" id="sale-edit-grill-check" onchange="onEditGrillToggle()">
+      <span class="cb-icon">🔥</span>
+      <span class="cb-label">مشوي؟</span>
+    </label>
+    <div id="sale-edit-grill-fields" style="display:none;">
+      <div class="row2">
+        <div class="field"><label>الكمية مشوي (ك)</label><input type="number" id="sale-edit-grill-qty" step="0.1"></div>
+        <div class="field"><label>سعر الشوي (شيكل/ك)</label><input type="number" id="sale-edit-grill-price" step="0.1"></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeSaleEdit()">إلغاء</button>
+      <button class="btn btn-primary" onclick="saveSaleEdit()">💾 حفظ التعديلات</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"><span class="tick">✓</span><span id="toast-msg"></span></div>
+
+<script>
+/* ======================================================================
+   SUPABASE — قاعدة البيانات الدائمة (اقرأ خطوات الإعداد المرفقة)
+   عدّل القيمتين التاليتين بالرابط والمفتاح الخاصين بمشروعك في Supabase
+   ====================================================================== */
+const SUPABASE_URL = "https://xnyrungifgbqnselsxow.supabase.co";       // مثال: https://xxxxxxxx.supabase.co
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhueXJ1bmdpZmdicW5zZWxzeG93Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcyOTIxOTAsImV4cCI6MjEwMjg2ODE5MH0.Ok0G7poF-0ZNewZHmpp_e9ktDWXavEYEwiR_0TGommA";     // من Project Settings > API > anon public
+
+const SUPABASE_CONFIGURED = !SUPABASE_URL.includes("PASTE_YOUR") && !SUPABASE_ANON_KEY.includes("PASTE_YOUR");
+let supabaseClient = null;
+if(SUPABASE_CONFIGURED){
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
+
+/* شِيم يحاكي واجهة window.storage الأصلية (get/set) لكن يخزّن البيانات فعليًا
+   في جدول app_kv داخل Supabase — بهذا تبقى كل دوال loadDB/saveDB وغيرها
+   في الأسفل تعمل دون أي تعديل، وتصبح البيانات دائمة ومتاحة من أي جهاز */
+window.storage = {
+  async get(key, shared){
+    if(!SUPABASE_CONFIGURED){
+      console.warn("⚠️ لم يتم ربط قاعدة بيانات Supabase بعد — البيانات لن تُحفظ. راجع خطوات الإعداد.");
+      return null;
+    }
+    const { data, error } = await supabaseClient
+      .from("app_kv")
+      .select("value")
+      .eq("key", key)
+      .maybeSingle();
+    if(error){ console.error("Supabase get error:", error); throw error; }
+    if(!data) return null;
+    return { key, value: data.value, shared: !!shared };
+  },
+  async set(key, value, shared){
+    if(!SUPABASE_CONFIGURED){
+      console.warn("⚠️ لم يتم ربط قاعدة بيانات Supabase بعد — لن يتم حفظ التغييرات.");
+      return null;
+    }
+    const { error } = await supabaseClient
+      .from("app_kv")
+      .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    if(error){ console.error("Supabase set error:", error); throw error; }
+    return { key, value, shared: !!shared };
+  }
+};
+
+/* ============ CONFIG ============ */
+const FISH_TYPES = ["دنيس","قاروص","بوري","جرع","سردين","لوكس","لوكس 111","طرخونة","باغة","صروص","سلطان","سويسي","مليطة","سلاطعين","جمبري","كلماري","مياس","سفرنه","بلميدا","بزرة","سكمبلة","صنف آخر"];
+const DAY_NAMES = ["الأحد","الاثنين","الثلاثاء","الأربعاء","الخميس","الجمعة","السبت"];
+const STORAGE_KEY = "purchases_archive_v1";
+const SALES_STORAGE_KEY = "sales_archive_v1";
+const RESOLUTIONS_STORAGE_KEY = "inventory_resolutions_v1";
+const PAYMENTS_STORAGE_KEY = "payments_archive_v1";
+const DEBTS_STORAGE_KEY = "debts_archive_v1";
+const SHARED = true; // shared ledger so the whole team sees the same purchases
+
+let DB = {}; // { "2026-08-20": { day:"الخميس", merchants:[{id,name,items:[{id,type,qty,price,amount}]}] } }
+let currentDetailDate = null;
+let pendingDelete = null; // {kind:'purchase'|'sale', date, ownerId, itemId}
+let editingCtx = null; // {date, merchantId, itemId}
+
+// المبيعات: نفس فكرة المشتريات لكن مرتبطة بمخزون الأصناف الناتج عن المشتريات
+let SALES_DB = {}; // { "2026-08-20": { day:"الخميس", customers:[{id,name,items:[{id,type,qty,price,amount,grill:{enabled,qty,price,amount}}]}] } }
+let currentSalesDetailDate = null;
+let saleEditingCtx = null; // {date, customerId, itemId}
+
+// صفحة الجرد: تسجيل قرار ترحيل/إتلاف المتبقي لكل صنف في كل يوم
+let RESOLUTIONS = {}; // { "2026-08-20": { "دنيس": {status:'rolled'|'destroyed', remaining, resolvedAt} } }
+let currentInventoryDetailDate = null;
+
+// صفحة السداد: كل عملية دفع (كاملة أو جزئية) تُسجَّل هنا مع تاريخها، سواء جاءت من صفحة المبيعات مباشرة أو من تسديد دين لاحقًا
+let PAYMENTS_DB = {}; // { id: {id,date,customerName,itemType,qty,price,grillEnabled,grillQty,grillPrice,itemAmount,paymentKind:'full'|'partial',amountPaid,sourceSaleDate,sourceItemId,debtId} }
+
+// صفحة الدين: المبالغ غير المسددة (دين كامل أو الجزء المتبقي من سداد جزئي)، قابلة للتسديد لاحقًا بشكل كامل أو على دفعات
+let DEBTS_DB = {}; // { id: {id,customerName,itemType,qty,price,grillEnabled,grillQty,grillPrice,itemAmount,debtKind:'debt'|'partial',remainingAmount,createdDate,lastUpdateDate,settled,history:[{date,amountPaid}]} }
+
+/* ============ INIT ============ */
+function populateTypeSelect(sel, withPlaceholder){
+  sel.innerHTML = "";
+  if(withPlaceholder){
+    const ph = document.createElement("option");
+    ph.value=""; ph.textContent="اختر الصنف";
+    sel.appendChild(ph);
+  }
+  FISH_TYPES.forEach(t=>{
+    const o = document.createElement("option");
+    o.value=t; o.textContent=t;
+    sel.appendChild(o);
+  });
+}
+
+function todayKey(){
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  const day = String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+}
+function dayNameOf(dateKey){
+  const d = new Date(dateKey+"T00:00:00");
+  return DAY_NAMES[d.getDay()];
+}
+function formatDateArabic(dateKey){
+  const [y,m,d] = dateKey.split("-");
+  return `${d}/${m}/${y}`;
+}
+function fmtMoney(n){
+  const num = Math.round(n*100)/100;
+  return `${num.toLocaleString('ar-EG')} ₪`;
+}
+function fmtQty(n){
+  const num = Math.round(n*100)/100;
+  return `${num.toLocaleString('ar-EG')}`;
+}
+function genId(){
+  return Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+}
+/* convert old flat "entries" day format into grouped "merchants" format
+   so previously-archived data keeps working with the new structure */
+function migrateDayData(dayData){
+  if(dayData && !dayData.merchants && Array.isArray(dayData.entries)){
+    const map = {};
+    const merchants = [];
+    dayData.entries.forEach(e=>{
+      const name = (e.merchant||"").trim();
+      let m = map[name];
+      if(!m){
+        m = {id: genId(), name, items: []};
+        map[name] = m;
+        merchants.push(m);
+      }
+      m.items.push({id: e.id || genId(), type: e.type, qty: e.qty, price: e.price, amount: e.amount});
+    });
+    dayData.merchants = merchants;
+    delete dayData.entries;
+  }
+  if(dayData && !dayData.merchants){ dayData.merchants = []; }
+  return dayData;
+}
+function getOrCreateMerchant(dayData, name){
+  const clean = name.trim();
+  let m = dayData.merchants.find(mm=>mm.name.trim()===clean);
+  if(!m){
+    m = {id: genId(), name: clean, items: []};
+    dayData.merchants.push(m);
+  }
+  return m;
+}
+function getOrCreateCustomer(dayData, name){
+  const clean = name.trim();
+  let c = dayData.customers.find(cc=>cc.name.trim()===clean);
+  if(!c){
+    c = {id: genId(), name: clean, items: []};
+    dayData.customers.push(c);
+  }
+  return c;
+}
+function migrateSalesDayData(dayData){
+  if(dayData && !dayData.customers){ dayData.customers = []; }
+  return dayData;
+}
+
+/* ============ STOCK (ربط المبيعات بالمشتريات) ============ */
+function getPurchasedTypesList(){
+  const set = new Set();
+  Object.values(DB).forEach(dayData=>{
+    (dayData.merchants||[]).forEach(m=> m.items.forEach(it=> set.add(it.type)));
+  });
+  return Array.from(set);
+}
+function computeTotalPurchasedQty(type){
+  let sum=0;
+  Object.values(DB).forEach(dayData=>{
+    (dayData.merchants||[]).forEach(m=> m.items.forEach(it=>{ if(it.type===type) sum+=it.qty; }));
+  });
+  return sum;
+}
+function computeTotalSoldQty(type, excludeItemId){
+  let sum=0;
+  Object.values(SALES_DB).forEach(dayData=>{
+    (dayData.customers||[]).forEach(c=> c.items.forEach(it=>{
+      if(it.type===type && it.id!==excludeItemId) sum+=it.qty;
+    }));
+  });
+  return sum;
+}
+function computeTotalDestroyedQty(type){
+  let sum=0;
+  Object.values(RESOLUTIONS).forEach(dayRes=>{
+    Object.entries(dayRes).forEach(([t,res])=>{
+      if(t===type && res.status==='destroyed') sum += res.remaining;
+    });
+  });
+  return sum;
+}
+function computeAvailableStock(type, excludeItemId){
+  if(!type) return 0;
+  const avail = computeTotalPurchasedQty(type) - computeTotalSoldQty(type, excludeItemId) - computeTotalDestroyedQty(type);
+  return Math.max(0, Math.round(avail*1000)/1000);
+}
+
+function spawnBubbles(){
+  const wrap = document.getElementById("bubbles");
+  for(let i=0;i<14;i++){
+    const b = document.createElement("span");
+    const size = 4 + Math.random()*10;
+    b.style.width = size+"px";
+    b.style.height = size+"px";
+    b.style.left = (Math.random()*100)+"%";
+    b.style.animationDuration = (7+Math.random()*10)+"s";
+    b.style.animationDelay = (Math.random()*10)+"s";
+    wrap.appendChild(b);
+  }
+}
+
+/* ============ STORAGE ============ */
+async function loadDB(){
+  try{
+    const res = await window.storage.get(STORAGE_KEY, SHARED);
+    if(res && res.value){ DB = JSON.parse(res.value); }
+    else{ DB = {}; }
+  }catch(e){ DB = {}; }
+  Object.keys(DB).forEach(key=>{ DB[key] = migrateDayData(DB[key]); });
+}
+async function saveDB(){
+  try{
+    await window.storage.set(STORAGE_KEY, JSON.stringify(DB), SHARED);
+  }catch(e){ console.error("storage error", e); }
+}
+async function loadSalesDB(){
+  try{
+    const res = await window.storage.get(SALES_STORAGE_KEY, SHARED);
+    if(res && res.value){ SALES_DB = JSON.parse(res.value); }
+    else{ SALES_DB = {}; }
+  }catch(e){ SALES_DB = {}; }
+  Object.keys(SALES_DB).forEach(key=>{ SALES_DB[key] = migrateSalesDayData(SALES_DB[key]); });
+}
+async function saveSalesDB(){
+  try{
+    await window.storage.set(SALES_STORAGE_KEY, JSON.stringify(SALES_DB), SHARED);
+  }catch(e){ console.error("storage error", e); }
+}
+async function loadResolutions(){
+  try{
+    const res = await window.storage.get(RESOLUTIONS_STORAGE_KEY, SHARED);
+    if(res && res.value){ RESOLUTIONS = JSON.parse(res.value); }
+    else{ RESOLUTIONS = {}; }
+  }catch(e){ RESOLUTIONS = {}; }
+}
+async function saveResolutions(){
+  try{
+    await window.storage.set(RESOLUTIONS_STORAGE_KEY, JSON.stringify(RESOLUTIONS), SHARED);
+  }catch(e){ console.error("storage error", e); }
+}
+async function loadPaymentsDB(){
+  try{
+    const res = await window.storage.get(PAYMENTS_STORAGE_KEY, SHARED);
+    if(res && res.value){ PAYMENTS_DB = JSON.parse(res.value); }
+    else{ PAYMENTS_DB = {}; }
+  }catch(e){ PAYMENTS_DB = {}; }
+}
+async function savePaymentsDB(){
+  try{
+    await window.storage.set(PAYMENTS_STORAGE_KEY, JSON.stringify(PAYMENTS_DB), SHARED);
+  }catch(e){ console.error("storage error", e); }
+}
+async function loadDebtsDB(){
+  try{
+    const res = await window.storage.get(DEBTS_STORAGE_KEY, SHARED);
+    if(res && res.value){ DEBTS_DB = JSON.parse(res.value); }
+    else{ DEBTS_DB = {}; }
+  }catch(e){ DEBTS_DB = {}; }
+}
+async function saveDebtsDB(){
+  try{
+    await window.storage.set(DEBTS_STORAGE_KEY, JSON.stringify(DEBTS_DB), SHARED);
+  }catch(e){ console.error("storage error", e); }
+}
+
+/* ============ NAVIGATION ============ */
+function goTo(view){
+  document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
+  document.getElementById("view-"+view).classList.add("active");
+  window.scrollTo({top:0,behavior:"smooth"});
+  if(view==="purchases"){
+    const key = todayKey();
+    document.getElementById("purchase-date-line").textContent = `${dayNameOf(key)} • ${formatDateArabic(key)}`;
+  }
+  if(view==="archive"){ renderArchiveList(); }
+  if(view==="sales"){
+    const key = todayKey();
+    document.getElementById("sale-date-line").textContent = `${dayNameOf(key)} • ${formatDateArabic(key)}`;
+    populateSaleTypeSelect();
+    onSaleTypeChange();
+    renderTodayCustomerItems(document.getElementById("in-customer").value);
+  }
+  if(view==="sales-archive"){ renderSalesArchiveList(); }
+  if(view==="inventory"){ renderInventoryList(); }
+  if(view==="payments"){ renderPaymentsPage(); }
+  if(view==="debts"){ renderDebtsPage(); }
+}
+
+/* ============ PURCHASES FORM ============ */
+function onTypeChange(){
+  const val = document.getElementById("in-type").value;
+  document.getElementById("custom-type-field").style.display = (val==="صنف آخر") ? "block" : "none";
+}
+function getSelectedType(){
+  const val = document.getElementById("in-type").value;
+  if(val==="صنف آخر"){
+    return document.getElementById("in-type-custom").value.trim();
+  }
+  return val;
+}
+function calcAmount(){
+  const qty = parseFloat(document.getElementById("in-qty").value)||0;
+  const price = parseFloat(document.getElementById("in-price").value)||0;
+  const amt = qty*price;
+  document.getElementById("amt-display").textContent = fmtMoney(amt);
+  return amt;
+}
+function onMerchantInput(){
+  renderTodayMerchantItems(document.getElementById("in-merchant").value);
+}
+function renderTodayMerchantItems(name){
+  const box = document.getElementById("today-items-box");
+  const clean = (name||"").trim();
+  const key = todayKey();
+  const dayData = DB[key];
+  const m = clean && dayData ? dayData.merchants.find(mm=>mm.name.trim()===clean) : null;
+
+  if(!m || m.items.length===0){
+    box.style.display = "none";
+    return;
+  }
+  document.getElementById("preview-merchant-name").textContent = m.name;
+  const list = document.getElementById("today-items-list");
+  list.innerHTML = m.items.map(it=>`
+    <div class="mini-item-row">
+      <span class="mi-type">${it.type}</span>
+      <span class="mi-qp">${it.qty} × ${it.price}</span>
+      <span class="mi-amt">${fmtMoney(it.amount)}</span>
+    </div>`).join("");
+  box.style.display = "block";
+}
+async function addPurchase(){
+  const merchant = document.getElementById("in-merchant").value.trim();
+  const type = getSelectedType();
+  const qty = parseFloat(document.getElementById("in-qty").value)||0;
+  const price = parseFloat(document.getElementById("in-price").value)||0;
+  const amount = qty*price;
+
+  if(!merchant){ showToast("الرجاء إدخال اسم التاجر"); return; }
+  if(!type){ showToast("الرجاء اختيار الصنف"); return; }
+  if(qty<=0 || price<=0){ showToast("الرجاء إدخال الكمية والسعر"); return; }
+
+  const key = todayKey();
+  if(!DB[key]){ DB[key] = {day: dayNameOf(key), merchants: []}; }
+  // نفس التاجر (بالاسم) يُلحق به الصنف الجديد بدل إنشاء تاجر مكرر
+  const m = getOrCreateMerchant(DB[key], merchant);
+  m.items.push({id: genId(), type, qty, price, amount});
+  await saveDB();
+
+  // clear item fields only — نبقي اسم التاجر لتسهيل إضافة صنف آخر له
+  document.getElementById("in-type").value="";
+  document.getElementById("in-type-custom").value="";
+  document.getElementById("custom-type-field").style.display="none";
+  document.getElementById("in-qty").value="";
+  document.getElementById("in-price").value="";
+  document.getElementById("amt-display").textContent="0 ₪";
+
+  renderTodayMerchantItems(merchant);
+  showToast(`تم إضافة الصنف لـ "${merchant}" في أرشيف المشتريات`);
+}
+
+/* ============ SALES FORM ============ */
+function populateSaleTypeSelect(){
+  const sel = document.getElementById("sale-type");
+  const currentVal = sel.value;
+  sel.innerHTML = "";
+  const ph = document.createElement("option");
+  ph.value=""; ph.textContent="اختر الصنف";
+  sel.appendChild(ph);
+
+  const types = getPurchasedTypesList();
+  if(types.length===0){
+    const o = document.createElement("option");
+    o.value=""; o.textContent="لا توجد أصناف مشتراة بعد"; o.disabled=true;
+    sel.appendChild(o);
+    return;
+  }
+  types.forEach(t=>{
+    const avail = computeAvailableStock(t);
+    const o = document.createElement("option");
+    o.value = t;
+    o.textContent = avail>0.0001 ? `${t}  —  متوفر: ${fmtQty(avail)} ك` : `${t}  —  نفدت الكمية`;
+    if(avail<=0.0001) o.disabled = true;
+    sel.appendChild(o);
+  });
+  if(types.includes(currentVal)) sel.value = currentVal;
+}
+function onSaleTypeChange(){
+  const type = document.getElementById("sale-type").value;
+  const hint = document.getElementById("sale-stock-hint");
+  if(!type){ hint.textContent=""; hint.classList.remove("low"); return; }
+  const avail = computeAvailableStock(type);
+  hint.textContent = `📦 الكمية المتوفرة من "${type}": ${fmtQty(avail)} كيلو`;
+  hint.classList.toggle("low", avail<=0.0001);
+}
+function onGrillToggle(){
+  const checked = document.getElementById("sale-grill-check").checked;
+  document.getElementById("grill-fields").style.display = checked ? "block" : "none";
+  calcSaleAmount();
+}
+function calcSaleAmount(){
+  const qty = parseFloat(document.getElementById("sale-qty").value)||0;
+  const price = parseFloat(document.getElementById("sale-price").value)||0;
+  let amt = qty*price;
+  if(document.getElementById("sale-grill-check").checked){
+    const gq = parseFloat(document.getElementById("sale-grill-qty").value)||0;
+    const gp = parseFloat(document.getElementById("sale-grill-price").value)||0;
+    amt += gq*gp;
+  }
+  document.getElementById("sale-amt-display").textContent = fmtMoney(amt);
+  updatePartialHint(amt);
+  return amt;
+}
+function onPaymentTypeChange(){
+  const val = document.getElementById("sale-payment-type").value;
+  const field = document.getElementById("partial-payment-field");
+  field.style.display = val==="partial" ? "block" : "none";
+  if(val!=="partial"){
+    document.getElementById("sale-partial-amount").value="";
+    document.getElementById("partial-remaining-hint").textContent="";
+    document.getElementById("partial-remaining-hint").classList.remove("low");
+  } else {
+    calcSaleAmount();
+  }
+}
+function updatePartialHint(total){
+  const sel = document.getElementById("sale-payment-type");
+  const hint = document.getElementById("partial-remaining-hint");
+  if(!sel || !hint || sel.value!=="partial") return;
+  const partial = parseFloat(document.getElementById("sale-partial-amount").value)||0;
+  if(partial<=0){
+    hint.textContent = `المبلغ الكلي: ${fmtMoney(total)} — أدخل مبلغ السداد الجزئي`;
+    hint.classList.remove("low");
+    return;
+  }
+  const remaining = Math.max(0, Math.round((total-partial)*1000)/1000);
+  hint.textContent = `💳 سيذهب ${fmtMoney(Math.min(partial,total))} إلى صفحة السداد، ويبقى ${fmtMoney(remaining)} كدين في صفحة الدين`;
+  hint.classList.toggle("low", partial>=total);
+}
+function onCustomerInput(){
+  renderTodayCustomerItems(document.getElementById("in-customer").value);
+}
+function renderTodayCustomerItems(name){
+  const box = document.getElementById("today-customer-items-box");
+  const clean = (name||"").trim();
+  const key = todayKey();
+  const dayData = SALES_DB[key];
+  const c = clean && dayData ? dayData.customers.find(cc=>cc.name.trim()===clean) : null;
+
+  if(!c || c.items.length===0){
+    box.style.display = "none";
+    return;
+  }
+  document.getElementById("preview-customer-name").textContent = c.name;
+  const list = document.getElementById("today-customer-items-list");
+  list.innerHTML = c.items.map(it=>`
+    <div class="mini-item-row">
+      <span class="mi-type">${it.type}${it.grill && it.grill.enabled ? ' 🔥' : ''}</span>
+      <span class="mi-qp">${it.qty} × ${it.price}${it.grill && it.grill.enabled ? ` + شوي ${it.grill.qty}×${it.grill.price}` : ''}</span>
+      <span class="mi-amt">${fmtMoney(it.amount)}</span>
+    </div>`).join("");
+  box.style.display = "block";
+}
+async function addSale(){
+  const customer = document.getElementById("in-customer").value.trim();
+  const type = document.getElementById("sale-type").value;
+  const qty = parseFloat(document.getElementById("sale-qty").value)||0;
+  const price = parseFloat(document.getElementById("sale-price").value)||0;
+  const grillEnabled = document.getElementById("sale-grill-check").checked;
+  const grillQty = grillEnabled ? (parseFloat(document.getElementById("sale-grill-qty").value)||0) : 0;
+  const grillPrice = grillEnabled ? (parseFloat(document.getElementById("sale-grill-price").value)||0) : 0;
+  const paymentType = document.getElementById("sale-payment-type").value; // 'full' | 'partial' | 'debt'
+
+  if(!customer){ showToast("الرجاء إدخال اسم الزبون"); return; }
+  if(!type){ showToast("الرجاء اختيار الصنف"); return; }
+  if(qty<=0 || price<=0){ showToast("الرجاء إدخال الكمية والسعر"); return; }
+  if(grillEnabled && (grillQty<=0 || grillPrice<=0)){ showToast("الرجاء إدخال كمية وسعر الشوي"); return; }
+  if(!paymentType){ showToast("الرجاء اختيار نوع السداد"); return; }
+
+  const available = computeAvailableStock(type);
+  if(qty > available + 1e-9){
+    showToast(`⚠️ متبقي فقط ${fmtQty(available)} كيلو من "${type}"`);
+    return;
+  }
+
+  const grillAmount = grillQty*grillPrice;
+  const amount = qty*price + grillAmount;
+
+  let partialAmount = 0;
+  if(paymentType==="partial"){
+    partialAmount = parseFloat(document.getElementById("sale-partial-amount").value)||0;
+    if(partialAmount<=0){ showToast("الرجاء إدخال مبلغ السداد الجزئي"); return; }
+    if(partialAmount >= amount){ showToast("مبلغ السداد الجزئي يجب أن يكون أقل من المبلغ الكلي — اختر «سداد» إذا تم الدفع بالكامل"); return; }
+  }
+
+  const key = todayKey();
+  if(!SALES_DB[key]){ SALES_DB[key] = {day: dayNameOf(key), customers: []}; }
+  const c = getOrCreateCustomer(SALES_DB[key], customer);
+  const itemId = genId();
+  const debtAmount = paymentType==="debt" ? amount
+                    : paymentType==="partial" ? Math.round((amount-partialAmount)*1000)/1000
+                    : 0;
+  const paidAmount = paymentType==="full" ? amount
+                    : paymentType==="partial" ? partialAmount
+                    : 0;
+  c.items.push({
+    id: itemId, type, qty, price, amount,
+    grill: grillEnabled ? {enabled:true, qty:grillQty, price:grillPrice, amount:grillAmount} : {enabled:false, qty:0, price:0, amount:0},
+    payment: {kind: paymentType, paidAmount, debtAmount}
+  });
+  await saveSalesDB();
+
+  // إرسال تفاصيل العملية إلى صفحة السداد و/أو صفحة الدين حسب نوع السداد المختار
+  const recordBase = {
+    customerName: c.name, itemType: type, qty, price,
+    grillEnabled, grillQty, grillPrice, itemAmount: amount,
+    sourceSaleDate: key, sourceItemId: itemId
+  };
+  if(paymentType==="full"){
+    await addPaymentRecord({...recordBase, paymentKind:"full", amountPaid:amount, date:key});
+  } else if(paymentType==="partial"){
+    await addPaymentRecord({...recordBase, paymentKind:"partial", amountPaid:partialAmount, date:key});
+    await addDebtRecord({...recordBase, debtKind:"partial", remainingAmount:debtAmount, createdDate:key});
+  } else if(paymentType==="debt"){
+    await addDebtRecord({...recordBase, debtKind:"debt", remainingAmount:amount, createdDate:key});
+  }
+
+  // clear item fields only — نبقي اسم الزبون لتسهيل إضافة صنف آخر له
+  document.getElementById("sale-type").value="";
+  document.getElementById("sale-qty").value="";
+  document.getElementById("sale-price").value="";
+  document.getElementById("sale-grill-check").checked=false;
+  document.getElementById("sale-grill-qty").value="";
+  document.getElementById("sale-grill-price").value="";
+  document.getElementById("grill-fields").style.display="none";
+  document.getElementById("sale-amt-display").textContent="0 ₪";
+  document.getElementById("sale-stock-hint").textContent="";
+  document.getElementById("sale-payment-type").value="";
+  document.getElementById("sale-partial-amount").value="";
+  document.getElementById("partial-payment-field").style.display="none";
+  document.getElementById("partial-remaining-hint").textContent="";
+
+  populateSaleTypeSelect();
+  renderTodayCustomerItems(customer);
+
+  const doneMsg = paymentType==="full" ? " (تم السداد الكامل ✅)"
+                 : paymentType==="partial" ? " (سداد جزئي 🟡 والباقي دين)"
+                 : " (تم تسجيله كدين 🔴)";
+  showToast(`تم إضافة الصنف لـ "${customer}"${doneMsg}`);
+}
+
+/* ============ PAYMENTS & DEBTS (صفحة السداد وصفحة الدين) ============ */
+async function addPaymentRecord(data){
+  const id = genId();
+  PAYMENTS_DB[id] = {
+    id, date: data.date, customerName: data.customerName, itemType: data.itemType,
+    qty: data.qty, price: data.price, grillEnabled: !!data.grillEnabled,
+    grillQty: data.grillQty||0, grillPrice: data.grillPrice||0,
+    itemAmount: data.itemAmount, paymentKind: data.paymentKind, amountPaid: data.amountPaid,
+    sourceSaleDate: data.sourceSaleDate||null, sourceItemId: data.sourceItemId||null,
+    debtId: data.debtId||null
+  };
+  await savePaymentsDB();
+  return id;
+}
+async function addDebtRecord(data){
+  const id = genId();
+  DEBTS_DB[id] = {
+    id, customerName: data.customerName, itemType: data.itemType,
+    qty: data.qty, price: data.price, grillEnabled: !!data.grillEnabled,
+    grillQty: data.grillQty||0, grillPrice: data.grillPrice||0,
+    itemAmount: data.itemAmount, debtKind: data.debtKind, remainingAmount: data.remainingAmount,
+    createdDate: data.createdDate, lastUpdateDate: data.createdDate,
+    sourceSaleDate: data.sourceSaleDate||null, sourceItemId: data.sourceItemId||null,
+    settled: false, history: []
+  };
+  await saveDebtsDB();
+  return id;
+}
+
+/* -------- صفحة السداد -------- */
+function renderPaymentsPage(){
+  const all = Object.values(PAYMENTS_DB).sort((a,b)=> (b.date||"").localeCompare(a.date||"") || (b.id||"").localeCompare(a.id||""));
+  const full = all.filter(p=>p.paymentKind==="full");
+  const partial = all.filter(p=>p.paymentKind==="partial");
+  let total = 0; all.forEach(p=> total += p.amountPaid);
+  document.getElementById("payments-grand-total").textContent = fmtMoney(total);
+  renderPaymentsTable(full, "payments-full-tbody", "payments-full-empty");
+  renderPaymentsTable(partial, "payments-partial-tbody", "payments-partial-empty");
+}
+function renderPaymentsTable(list, tbodyId, emptyId){
+  const tbody = document.getElementById(tbodyId);
+  const emptyEl = document.getElementById(emptyId);
+  const tableWrap = tbody.closest(".card");
+  if(list.length===0){
+    tbody.innerHTML = "";
+    tableWrap.style.display = "none";
+    emptyEl.style.display = "block";
+    return;
+  }
+  tableWrap.style.display = "block";
+  emptyEl.style.display = "none";
+  tbody.innerHTML = list.map(p=>`
+    <tr>
+      <td>${dayNameOf(p.date)}<div class="cell-date-day">${formatDateArabic(p.date)}</div></td>
+      <td>${p.customerName}</td>
+      <td>${p.itemType}${p.grillEnabled ? ' 🔥' : ''}<div class="cell-sub">${fmtQty(p.qty)} × ${fmtMoney(p.price)}${p.grillEnabled ? ` + شوي ${fmtQty(p.grillQty)}×${fmtMoney(p.grillPrice)}` : ''}</div></td>
+      <td class="num">${fmtMoney(p.itemAmount)}</td>
+      <td class="num" style="color:var(--success);">${fmtMoney(p.amountPaid)}</td>
+    </tr>`).join("");
+}
+
+/* -------- صفحة الدين -------- */
+function renderDebtsPage(){
+  const all = Object.values(DEBTS_DB).filter(d=> !d.settled && d.remainingAmount>0.0001);
+  const debtList = all.filter(d=>d.debtKind==="debt").sort((a,b)=> (b.lastUpdateDate||"").localeCompare(a.lastUpdateDate||""));
+  const partialList = all.filter(d=>d.debtKind==="partial").sort((a,b)=> (b.lastUpdateDate||"").localeCompare(a.lastUpdateDate||""));
+  let total = 0; all.forEach(d=> total += d.remainingAmount);
+  document.getElementById("debts-grand-total").textContent = fmtMoney(total);
+  renderDebtGroup(debtList, "debts-full-list", "debts-full-empty", "debt");
+  renderDebtGroup(partialList, "debts-partial-list", "debts-partial-empty", "partial");
+}
+function renderDebtGroup(list, wrapId, emptyId, kindClass){
+  const wrap = document.getElementById(wrapId);
+  const emptyEl = document.getElementById(emptyId);
+  if(list.length===0){
+    wrap.innerHTML = "";
+    wrap.style.display = "none";
+    emptyEl.style.display = "block";
+    return;
+  }
+  wrap.style.display = "block";
+  emptyEl.style.display = "none";
+  wrap.innerHTML = list.map(d=>renderDebtCardHtml(d, kindClass)).join("");
+}
+function renderDebtCardHtml(d, kindClass){
+  const kindLabel = d.debtKind==="debt" ? "🔴 دين كامل" : "🟡 سداد جزئي — متبقٍ";
+  const dateLine = d.lastUpdateDate && d.lastUpdateDate!==d.createdDate
+    ? `تاريخ العملية: ${formatDateArabic(d.createdDate)} • آخر تحديث سداد: ${formatDateArabic(d.lastUpdateDate)}`
+    : `تاريخ العملية: ${formatDateArabic(d.createdDate)}`;
+  return `
+    <div class="debt-card" id="debt-card-${d.id}">
+      <div class="debt-card-top">
+        <div>
+          <div class="debt-customer">${d.customerName}</div>
+          <div class="debt-item">${d.itemType}${d.grillEnabled ? ' 🔥' : ''} — ${fmtQty(d.qty)} × ${fmtMoney(d.price)}${d.grillEnabled ? ` + شوي ${fmtQty(d.grillQty)}×${fmtMoney(d.grillPrice)}` : ''}</div>
+          <div class="debt-date">${dateLine}</div>
+          <span class="debt-kind-pill ${kindClass}">${kindLabel}</span>
+        </div>
+        <div class="debt-amount">${fmtMoney(d.remainingAmount)}</div>
+      </div>
+      <button class="btn-mini settle" onclick="openDebtSettle('${d.id}')">💳 سداد</button>
+      <div class="debt-settle-form" id="debt-settle-form-${d.id}" style="display:none;">
+        <div class="field">
+          <label>نوع السداد</label>
+          <select id="debt-settle-type-${d.id}" onchange="onDebtSettleTypeChange('${d.id}')">
+            <option value="">اختر نوع السداد</option>
+            <option value="full">✅ سداد (المبلغ المتبقي بالكامل)</option>
+            <option value="partial">🟡 سداد جزئي</option>
+          </select>
+        </div>
+        <div class="field" id="debt-settle-partial-field-${d.id}" style="display:none;">
+          <label>مبلغ السداد الجزئي</label>
+          <input type="number" id="debt-settle-partial-${d.id}" placeholder="0" min="0" step="0.1" oninput="onDebtPartialInput('${d.id}')">
+          <div class="stock-hint" id="debt-settle-hint-${d.id}"></div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="confirmDebtSettle('${d.id}')">✅ تأكيد السداد</button>
+          <button class="btn btn-ghost" onclick="closeDebtSettle('${d.id}')">إلغاء</button>
+        </div>
+      </div>
+    </div>`;
+}
+function openDebtSettle(id){
+  document.querySelectorAll(".debt-settle-form").forEach(f=>{
+    if(f.id!==`debt-settle-form-${id}`) f.style.display="none";
+  });
+  const form = document.getElementById(`debt-settle-form-${id}`);
+  form.style.display = (form.style.display==="block") ? "none" : "block";
+}
+function closeDebtSettle(id){
+  const form = document.getElementById(`debt-settle-form-${id}`);
+  if(form) form.style.display="none";
+  const sel = document.getElementById(`debt-settle-type-${id}`); if(sel) sel.value="";
+  const pf = document.getElementById(`debt-settle-partial-field-${id}`); if(pf) pf.style.display="none";
+  const pi = document.getElementById(`debt-settle-partial-${id}`); if(pi) pi.value="";
+  const hint = document.getElementById(`debt-settle-hint-${id}`); if(hint) hint.textContent="";
+}
+function onDebtSettleTypeChange(id){
+  const val = document.getElementById(`debt-settle-type-${id}`).value;
+  const field = document.getElementById(`debt-settle-partial-field-${id}`);
+  field.style.display = val==="partial" ? "block" : "none";
+  if(val==="partial") onDebtPartialInput(id);
+}
+function onDebtPartialInput(id){
+  const d = DEBTS_DB[id];
+  if(!d) return;
+  const hint = document.getElementById(`debt-settle-hint-${id}`);
+  const val = parseFloat(document.getElementById(`debt-settle-partial-${id}`).value)||0;
+  if(val<=0){
+    hint.textContent = `المبلغ المتبقي على الزبون: ${fmtMoney(d.remainingAmount)}`;
+    hint.classList.remove("low");
+    return;
+  }
+  const rest = Math.max(0, Math.round((d.remainingAmount-val)*1000)/1000);
+  hint.textContent = `💳 سيذهب ${fmtMoney(Math.min(val,d.remainingAmount))} إلى صفحة السداد، ويبقى ${fmtMoney(rest)} كدين`;
+  hint.classList.toggle("low", val>=d.remainingAmount);
+}
+async function confirmDebtSettle(id){
+  const d = DEBTS_DB[id];
+  if(!d) return;
+  const type = document.getElementById(`debt-settle-type-${id}`).value;
+  if(!type){ showToast("الرجاء اختيار نوع السداد"); return; }
+  const today = todayKey();
+  const recordBase = {
+    customerName: d.customerName, itemType: d.itemType, qty: d.qty, price: d.price,
+    grillEnabled: d.grillEnabled, grillQty: d.grillQty, grillPrice: d.grillPrice,
+    itemAmount: d.itemAmount, sourceSaleDate: d.sourceSaleDate, sourceItemId: d.sourceItemId
+  };
+
+  if(type==="full"){
+    const paidNow = d.remainingAmount;
+    const kind = paidNow >= d.itemAmount - 1e-9 ? "full" : "partial";
+    await addPaymentRecord({...recordBase, paymentKind:kind, amountPaid:paidNow, date:today, debtId:id});
+    d.remainingAmount = 0;
+    d.settled = true;
+    d.lastUpdateDate = today;
+    d.history.push({date:today, amountPaid:paidNow});
+    await saveDebtsDB();
+    renderDebtsPage();
+    showToast(`تم سداد المبلغ المتبقي لـ "${d.customerName}" وأُرسل إلى صفحة السداد ✅`);
+    return;
+  }
+
+  if(type==="partial"){
+    const val = parseFloat(document.getElementById(`debt-settle-partial-${id}`).value)||0;
+    if(val<=0){ showToast("الرجاء إدخال مبلغ السداد الجزئي"); return; }
+    if(val >= d.remainingAmount){ showToast("هذا المبلغ يغطي كامل المتبقي — اختر «سداد» بدلاً من ذلك"); return; }
+    await addPaymentRecord({...recordBase, paymentKind:"partial", amountPaid:val, date:today, debtId:id});
+    d.remainingAmount = Math.round((d.remainingAmount - val)*1000)/1000;
+    d.lastUpdateDate = today;
+    d.history.push({date:today, amountPaid:val});
+    await saveDebtsDB();
+    renderDebtsPage();
+    showToast(`تم تسجيل سداد جزئي ${fmtMoney(val)} لـ "${d.customerName}"، والباقي ${fmtMoney(d.remainingAmount)} ما زال دينًا 🟡`);
+  }
+}
+
+/* ============ ARCHIVE LIST ============ */
+function renderArchiveList(){
+  const wrap = document.getElementById("archive-list");
+  const keys = Object.keys(DB).sort((a,b)=> b.localeCompare(a)); // newest first
+  if(keys.length===0){
+    wrap.innerHTML = `<div class="empty-state"><div class="ico">📦</div><div>لا توجد مشتريات مؤرشفة بعد</div></div>`;
+    return;
+  }
+  wrap.innerHTML = "";
+  keys.forEach(key=>{
+    const dayData = DB[key];
+    const merchants = dayData.merchants || [];
+    const total = merchants.reduce((s,m)=>s + m.items.reduce((s2,it)=>s2+it.amount,0), 0);
+    const [y,m,d] = key.split("-");
+    const monthShort = ["ينا","فبر","مار","أبر","ماي","يون","يول","أغس","سبت","أكت","نوف","ديس"][parseInt(m,10)-1];
+    const card = document.createElement("div");
+    card.className = "date-card";
+    card.onclick = ()=>openDetail(key);
+    card.innerHTML = `
+      <div class="d-left">
+        <div class="date-badge"><span class="dd">${d}</span><span class="mm">${monthShort}</span></div>
+        <div>
+          <div class="d-day">${dayData.day} • ${formatDateArabic(key)}</div>
+          <div class="d-count">${merchants.length} تاجر</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;">
+        <div class="d-total">${fmtMoney(total)}</div>
+        <span class="chev">‹</span>
+      </div>`;
+    wrap.appendChild(card);
+  });
+}
+
+/* ============ ARCHIVE DETAIL ============ */
+function openDetail(key){
+  currentDetailDate = key;
+  const dayData = DB[key];
+  document.getElementById("detail-title").textContent = `${dayData.day} • ${formatDateArabic(key)}`;
+  renderDetailTable();
+  goTo("archive-detail");
+}
+function renderDetailTable(){
+  const dayData = DB[currentDetailDate];
+  const tbody = document.getElementById("detail-tbody");
+  const emptyEl = document.getElementById("detail-empty");
+  const tableWrap = document.querySelector("#view-archive-detail .card");
+  const merchants = dayData ? (dayData.merchants||[]) : [];
+
+  if(!dayData || merchants.length===0){
+    tbody.innerHTML="";
+    tableWrap.style.display="none";
+    emptyEl.style.display="block";
+    document.getElementById("detail-total").textContent = fmtMoney(0);
+    return;
+  }
+  tableWrap.style.display="block";
+  emptyEl.style.display="none";
+
+  let total=0;
+  tbody.innerHTML="";
+  merchants.forEach(m=>{
+    const merchantTotal = m.items.reduce((s,it)=>s+it.amount,0);
+    total += merchantTotal;
+
+    const headerTr = document.createElement("tr");
+    headerTr.className = "merchant-row";
+    const safeName = m.name.replace(/'/g,"\\'");
+    headerTr.innerHTML = `
+      <td colspan="5">
+        <div class="merchant-header-cell">
+          <span class="merchant-name-tag">🏪 ${m.name}</span>
+          <span class="merchant-subtotal">${fmtMoney(merchantTotal)}</span>
+        </div>
+      </td>`;
+    tbody.appendChild(headerTr);
+
+    m.items.forEach(it=>{
+      const tr = document.createElement("tr");
+      const safeType = (it.type||"").replace(/'/g,"\\'");
+      tr.innerHTML = `
+        <td>${it.type}</td>
+        <td class="num">${it.qty}</td>
+        <td class="num">${it.price}</td>
+        <td class="num">${fmtMoney(it.amount)}</td>
+        <td>
+          <div class="row-actions">
+            <button class="icon-btn edit" title="تعديل" onclick="openEdit('${currentDetailDate}','${m.id}','${it.id}')">✎</button>
+            <button class="icon-btn del" title="حذف" onclick="askDelete('${currentDetailDate}','${m.id}','${it.id}','${safeName}','${safeType}')">🗑</button>
+          </div>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+  });
+  document.getElementById("detail-total").textContent = fmtMoney(total);
+}
+
+/* ============ EDIT ============ */
+function openEdit(date, merchantId, itemId){
+  const dayData = DB[date];
+  const m = dayData.merchants.find(mm=>mm.id===merchantId);
+  if(!m) return;
+  const item = m.items.find(it=>it.id===itemId);
+  if(!item) return;
+  editingCtx = {date, merchantId, itemId};
+  document.getElementById("edit-merchant").value = m.name;
+  const sel = document.getElementById("edit-type");
+  populateTypeSelect(sel, false);
+  sel.value = FISH_TYPES.includes(item.type) ? item.type : "صنف آخر";
+  document.getElementById("edit-qty").value = item.qty;
+  document.getElementById("edit-price").value = item.price;
+  document.getElementById("edit-overlay").classList.add("active");
+}
+function closeEdit(){
+  document.getElementById("edit-overlay").classList.remove("active");
+  editingCtx = null;
+}
+async function saveEdit(){
+  if(!editingCtx) return;
+  const {date, merchantId, itemId} = editingCtx;
+  const dayData = DB[date];
+  const m = dayData.merchants.find(mm=>mm.id===merchantId);
+  if(!m) return;
+  const item = m.items.find(it=>it.id===itemId);
+  if(!item) return;
+
+  const newName = document.getElementById("edit-merchant").value.trim() || m.name;
+  item.type = document.getElementById("edit-type").value || item.type;
+  item.qty = parseFloat(document.getElementById("edit-qty").value) || item.qty;
+  item.price = parseFloat(document.getElementById("edit-price").value) || item.price;
+  item.amount = item.qty * item.price;
+
+  if(newName !== m.name){
+    m.name = newName;
+    // إن كان هناك تاجر آخر بنفس الاسم الجديد في نفس اليوم، يتم دمج الأصناف معه
+    const dup = dayData.merchants.find(mm=>mm.id!==m.id && mm.name.trim()===newName);
+    if(dup){
+      dup.items = dup.items.concat(m.items);
+      dayData.merchants = dayData.merchants.filter(mm=>mm.id!==m.id);
+    }
+  }
+
+  await saveDB();
+  closeEdit();
+  renderDetailTable();
+  showToast("تم حفظ التعديلات بنجاح");
+}
+
+/* ============ DELETE ============ */
+function askDelete(date, merchantId, itemId, merchantName, typeName){
+  pendingDelete = {kind:'purchase', date, ownerId: merchantId, itemId};
+  document.getElementById("confirm-text").textContent = `هل أنت متأكد من حذف صنف "${typeName}" من التاجر "${merchantName}"؟`;
+  document.getElementById("confirm-overlay").classList.add("active");
+}
+function askSaleDelete(date, customerId, itemId, customerName, typeName){
+  pendingDelete = {kind:'sale', date, ownerId: customerId, itemId};
+  document.getElementById("confirm-text").textContent = `هل أنت متأكد من حذف صنف "${typeName}" من الزبون "${customerName}"؟`;
+  document.getElementById("confirm-overlay").classList.add("active");
+}
+function closeConfirm(){
+  document.getElementById("confirm-overlay").classList.remove("active");
+  pendingDelete = null;
+}
+async function confirmDelete(){
+  if(!pendingDelete) return;
+  if(pendingDelete.kind==='sale'){
+    const {date, ownerId, itemId} = pendingDelete;
+    const dayData = SALES_DB[date];
+    const c = dayData.customers.find(cc=>cc.id===ownerId);
+    if(c){
+      c.items = c.items.filter(it=>it.id!==itemId);
+      if(c.items.length===0){
+        dayData.customers = dayData.customers.filter(cc=>cc.id!==ownerId);
+      }
+    }
+    await saveSalesDB();
+    closeConfirm();
+    renderSalesDetailTable();
+    showToast("تم حذف الصنف بنجاح");
+    return;
+  }
+  const {date, ownerId, itemId} = pendingDelete;
+  const dayData = DB[date];
+  const m = dayData.merchants.find(mm=>mm.id===ownerId);
+  if(m){
+    m.items = m.items.filter(it=>it.id!==itemId);
+    if(m.items.length===0){
+      dayData.merchants = dayData.merchants.filter(mm=>mm.id!==ownerId);
+    }
+  }
+  await saveDB();
+  closeConfirm();
+  renderDetailTable();
+  showToast("تم حذف الصنف بنجاح");
+}
+
+/* ============ SALES ARCHIVE LIST ============ */
+function renderSalesArchiveList(){
+  const wrap = document.getElementById("sales-archive-list");
+  const keys = Object.keys(SALES_DB).sort((a,b)=> b.localeCompare(a));
+  if(keys.length===0){
+    wrap.innerHTML = `<div class="empty-state"><div class="ico">💰</div><div>لا توجد مبيعات مؤرشفة بعد</div></div>`;
+    return;
+  }
+  wrap.innerHTML = "";
+  keys.forEach(key=>{
+    const dayData = SALES_DB[key];
+    const customers = dayData.customers || [];
+    const total = customers.reduce((s,c)=>s + c.items.reduce((s2,it)=>s2+it.amount,0), 0);
+    const [y,m,d] = key.split("-");
+    const monthShort = ["ينا","فبر","مار","أبر","ماي","يون","يول","أغس","سبت","أكت","نوف","ديس"][parseInt(m,10)-1];
+    const card = document.createElement("div");
+    card.className = "date-card";
+    card.onclick = ()=>openSalesDetail(key);
+    card.innerHTML = `
+      <div class="d-left">
+        <div class="date-badge"><span class="dd">${d}</span><span class="mm">${monthShort}</span></div>
+        <div>
+          <div class="d-day">${dayData.day} • ${formatDateArabic(key)}</div>
+          <div class="d-count">${customers.length} زبون</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;">
+        <div class="d-total">${fmtMoney(total)}</div>
+        <span class="chev">‹</span>
+      </div>`;
+    wrap.appendChild(card);
+  });
+}
+
+/* ============ SALES ARCHIVE DETAIL ============ */
+function openSalesDetail(key){
+  currentSalesDetailDate = key;
+  const dayData = SALES_DB[key];
+  document.getElementById("sales-detail-title").textContent = `${dayData.day} • ${formatDateArabic(key)}`;
+  renderSalesDetailTable();
+  goTo("sales-archive-detail");
+}
+function renderSalesDetailTable(){
+  const dayData = SALES_DB[currentSalesDetailDate];
+  const tbody = document.getElementById("sales-detail-tbody");
+  const emptyEl = document.getElementById("sales-detail-empty");
+  const tableWrap = document.querySelector("#view-sales-archive-detail .card");
+  const customers = dayData ? (dayData.customers||[]) : [];
+
+  if(!dayData || customers.length===0){
+    tbody.innerHTML="";
+    tableWrap.style.display="none";
+    emptyEl.style.display="block";
+    document.getElementById("sales-detail-total").textContent = fmtMoney(0);
+    return;
+  }
+  tableWrap.style.display="block";
+  emptyEl.style.display="none";
+
+  let total=0;
+  tbody.innerHTML="";
+  customers.forEach(c=>{
+    const customerTotal = c.items.reduce((s,it)=>s+it.amount,0);
+    total += customerTotal;
+
+    const headerTr = document.createElement("tr");
+    headerTr.className = "merchant-row";
+    const safeName = c.name.replace(/'/g,"\\'");
+    headerTr.innerHTML = `
+      <td colspan="5">
+        <div class="merchant-header-cell">
+          <span class="merchant-name-tag">👤 ${c.name}</span>
+          <span class="merchant-subtotal">${fmtMoney(customerTotal)}</span>
+        </div>
+      </td>`;
+    tbody.appendChild(headerTr);
+
+    c.items.forEach(it=>{
+      const tr = document.createElement("tr");
+      const safeType = (it.type||"").replace(/'/g,"\\'");
+      const grillLine = (it.grill && it.grill.enabled)
+        ? `<br><span class="grill-note">🔥 مشوي ${fmtQty(it.grill.qty)}ك × ${it.grill.price} = ${fmtMoney(it.grill.amount)}</span>` : "";
+      tr.innerHTML = `
+        <td>${it.type}${grillLine}</td>
+        <td class="num">${it.qty}</td>
+        <td class="num">${it.price}</td>
+        <td class="num">${fmtMoney(it.amount)}</td>
+        <td>
+          <div class="row-actions">
+            <button class="icon-btn edit" title="تعديل" onclick="openSaleEdit('${currentSalesDetailDate}','${c.id}','${it.id}')">✎</button>
+            <button class="icon-btn del" title="حذف" onclick="askSaleDelete('${currentSalesDetailDate}','${c.id}','${it.id}','${safeName}','${safeType}')">🗑</button>
+          </div>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+  });
+  document.getElementById("sales-detail-total").textContent = fmtMoney(total);
+}
+
+/* ============ SALES EDIT ============ */
+function onEditGrillToggle(){
+  const checked = document.getElementById("sale-edit-grill-check").checked;
+  document.getElementById("sale-edit-grill-fields").style.display = checked ? "block" : "none";
+}
+function openSaleEdit(date, customerId, itemId){
+  const dayData = SALES_DB[date];
+  const c = dayData.customers.find(cc=>cc.id===customerId);
+  if(!c) return;
+  const item = c.items.find(it=>it.id===itemId);
+  if(!item) return;
+  saleEditingCtx = {date, customerId, itemId};
+  document.getElementById("sale-edit-customer").value = c.name;
+  const sel = document.getElementById("sale-edit-type");
+  sel.innerHTML = "";
+  getPurchasedTypesList().forEach(t=>{
+    const o = document.createElement("option");
+    o.value=t; o.textContent=t;
+    sel.appendChild(o);
+  });
+  if(!getPurchasedTypesList().includes(item.type)){
+    const o = document.createElement("option");
+    o.value=item.type; o.textContent=item.type;
+    sel.appendChild(o);
+  }
+  sel.value = item.type;
+  document.getElementById("sale-edit-qty").value = item.qty;
+  document.getElementById("sale-edit-price").value = item.price;
+  const grillOn = !!(item.grill && item.grill.enabled);
+  document.getElementById("sale-edit-grill-check").checked = grillOn;
+  document.getElementById("sale-edit-grill-fields").style.display = grillOn ? "block" : "none";
+  document.getElementById("sale-edit-grill-qty").value = grillOn ? item.grill.qty : "";
+  document.getElementById("sale-edit-grill-price").value = grillOn ? item.grill.price : "";
+  document.getElementById("sale-edit-overlay").classList.add("active");
+}
+function closeSaleEdit(){
+  document.getElementById("sale-edit-overlay").classList.remove("active");
+  saleEditingCtx = null;
+}
+async function saveSaleEdit(){
+  if(!saleEditingCtx) return;
+  const {date, customerId, itemId} = saleEditingCtx;
+  const dayData = SALES_DB[date];
+  const c = dayData.customers.find(cc=>cc.id===customerId);
+  if(!c) return;
+  const item = c.items.find(it=>it.id===itemId);
+  if(!item) return;
+
+  const newType = document.getElementById("sale-edit-type").value || item.type;
+  const newQty = parseFloat(document.getElementById("sale-edit-qty").value) || item.qty;
+  const newPrice = parseFloat(document.getElementById("sale-edit-price").value) || item.price;
+  const grillEnabled = document.getElementById("sale-edit-grill-check").checked;
+  const grillQty = grillEnabled ? (parseFloat(document.getElementById("sale-edit-grill-qty").value)||0) : 0;
+  const grillPrice = grillEnabled ? (parseFloat(document.getElementById("sale-edit-grill-price").value)||0) : 0;
+
+  // تحقق من المتوفر بحيث نستثني كمية هذا الصنف نفسه من الحساب قبل التعديل
+  const availableForType = computeAvailableStock(newType, item.id);
+  if(newQty > availableForType + 1e-9){
+    showToast(`⚠️ متبقي فقط ${fmtQty(availableForType)} كيلو من "${newType}"`);
+    return;
+  }
+
+  const newName = document.getElementById("sale-edit-customer").value.trim() || c.name;
+  item.type = newType;
+  item.qty = newQty;
+  item.price = newPrice;
+  const grillAmount = grillQty*grillPrice;
+  item.grill = grillEnabled ? {enabled:true, qty:grillQty, price:grillPrice, amount:grillAmount} : {enabled:false, qty:0, price:0, amount:0};
+  item.amount = item.qty*item.price + grillAmount;
+
+  if(newName !== c.name){
+    c.name = newName;
+    const dup = dayData.customers.find(cc=>cc.id!==c.id && cc.name.trim()===newName);
+    if(dup){
+      dup.items = dup.items.concat(c.items);
+      dayData.customers = dayData.customers.filter(cc=>cc.id!==c.id);
+    }
+  }
+
+  await saveSalesDB();
+  closeSaleEdit();
+  renderSalesDetailTable();
+  showToast("تم حفظ التعديلات بنجاح");
+}
+
+/* ============ INVENTORY (الجرد) ============ */
+function typesForDay(date){
+  const types = new Set();
+  const p = DB[date];
+  if(p) (p.merchants||[]).forEach(m=>m.items.forEach(it=>types.add(it.type)));
+  const s = SALES_DB[date];
+  if(s) (s.customers||[]).forEach(c=>c.items.forEach(it=>types.add(it.type)));
+  return Array.from(types);
+}
+function purchasedQtyForDayType(date, type){
+  const dayData = DB[date];
+  if(!dayData) return 0;
+  let sum=0;
+  (dayData.merchants||[]).forEach(m=> m.items.forEach(it=>{ if(it.type===type) sum+=it.qty; }));
+  return sum;
+}
+function soldQtyForDayType(date, type){
+  const dayData = SALES_DB[date];
+  if(!dayData) return 0;
+  let sum=0;
+  (dayData.customers||[]).forEach(c=> c.items.forEach(it=>{ if(it.type===type) sum+=it.qty; }));
+  return sum;
+}
+function getRemainingForDay(date, type){
+  const remaining = purchasedQtyForDayType(date,type) - soldQtyForDayType(date,type);
+  return Math.round(remaining*1000)/1000;
+}
+function dayHasPendingInventory(date){
+  return typesForDay(date).some(t=>{
+    const remaining = getRemainingForDay(date,t);
+    if(remaining<=0.0001) return false;
+    const res = RESOLUTIONS[date] && RESOLUTIONS[date][t];
+    return !res;
+  });
+}
+function renderInventoryList(){
+  const wrap = document.getElementById("inventory-list");
+  const keys = Array.from(new Set([...Object.keys(DB), ...Object.keys(SALES_DB)])).sort((a,b)=> b.localeCompare(a));
+  if(keys.length===0){
+    wrap.innerHTML = `<div class="empty-state"><div class="ico">📋</div><div>لا توجد حركة مشتريات أو مبيعات بعد</div></div>`;
+    return;
+  }
+  wrap.innerHTML = "";
+  keys.forEach(key=>{
+    const dayLabel = (DB[key] && DB[key].day) || (SALES_DB[key] && SALES_DB[key].day) || dayNameOf(key);
+    const types = typesForDay(key);
+    const pending = dayHasPendingInventory(key);
+    const [y,m,d] = key.split("-");
+    const monthShort = ["ينا","فبر","مار","أبر","ماي","يون","يول","أغس","سبت","أكت","نوف","ديس"][parseInt(m,10)-1];
+    const card = document.createElement("div");
+    card.className = "date-card";
+    card.onclick = ()=>openInventoryDetail(key);
+    card.innerHTML = `
+      <div class="d-left">
+        <div class="date-badge"><span class="dd">${d}</span><span class="mm">${monthShort}</span></div>
+        <div>
+          <div class="d-day">${dayLabel} • ${formatDateArabic(key)}</div>
+          <div class="d-count">${types.length} صنف</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span class="inv-badge ${pending ? 'pending' : 'ok'}">${pending ? '⏳ بحاجة لمراجعة' : '✅ مكتمل'}</span>
+        <span class="chev">‹</span>
+      </div>`;
+    wrap.appendChild(card);
+  });
+}
+function openInventoryDetail(key){
+  currentInventoryDetailDate = key;
+  const dayLabel = (DB[key] && DB[key].day) || (SALES_DB[key] && SALES_DB[key].day) || dayNameOf(key);
+  document.getElementById("inventory-detail-title").textContent = `${dayLabel} • ${formatDateArabic(key)}`;
+  renderInventoryDetailTable();
+  goTo("inventory-detail");
+}
+function renderInventoryDetailTable(){
+  const date = currentInventoryDetailDate;
+  const tbody = document.getElementById("inventory-detail-tbody");
+  const emptyEl = document.getElementById("inventory-detail-empty");
+  const tableWrap = document.querySelector("#view-inventory-detail .card");
+  const types = typesForDay(date);
+
+  if(types.length===0){
+    tbody.innerHTML="";
+    tableWrap.style.display="none";
+    emptyEl.style.display="block";
+    return;
+  }
+  tableWrap.style.display="block";
+  emptyEl.style.display="none";
+
+  tbody.innerHTML = "";
+  types.forEach(type=>{
+    const purchased = purchasedQtyForDayType(date, type);
+    const sold = soldQtyForDayType(date, type);
+    const remaining = getRemainingForDay(date, type);
+    const res = RESOLUTIONS[date] && RESOLUTIONS[date][type];
+    const safeType = type.replace(/'/g,"\\'");
+
+    let actionCell;
+    if(remaining<=0.0001){
+      actionCell = `<span class="status-pill matched">✅ مطابق</span>`;
+    } else if(res){
+      actionCell = res.status==='rolled'
+        ? `<span class="status-pill rolled">↪️ رُحّل ${fmtQty(res.remaining)} ك لليوم التالي</span>`
+        : `<span class="status-pill destroyed">🗑️ أُتلف ${fmtQty(res.remaining)} ك</span>`;
+    } else {
+      actionCell = `
+        <div class="inv-row-actions">
+          <button class="btn-mini roll" onclick="resolveInventory('${date}','${safeType}','rolled')">↪️ ترحيل</button>
+          <button class="btn-mini destroy" onclick="resolveInventory('${date}','${safeType}','destroyed')">🗑️ إتلاف</button>
+        </div>`;
+    }
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><span class="inv-type-name">${type}</span></td>
+      <td class="num">${fmtQty(purchased)}</td>
+      <td class="num">${fmtQty(sold)}</td>
+      <td class="num">${fmtQty(remaining)}</td>
+      <td>${actionCell}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+async function resolveInventory(date, type, action){
+  const remaining = getRemainingForDay(date, type);
+  if(remaining<=0.0001) return;
+  if(!RESOLUTIONS[date]) RESOLUTIONS[date] = {};
+  RESOLUTIONS[date][type] = {status: action, remaining, resolvedAt: Date.now()};
+  await saveResolutions();
+  renderInventoryDetailTable();
+  renderInventoryList();
+  showToast(action==='rolled'
+    ? `تم ترحيل ${fmtQty(remaining)} كيلو "${type}" لليوم التالي`
+    : `تم إتلاف ${fmtQty(remaining)} كيلو "${type}"`);
+}
+
+/* ============ TOAST ============ */
+let toastTimer=null;
+function showToast(msg){
+  const t = document.getElementById("toast");
+  document.getElementById("toast-msg").textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove("show"), 3200);
+}
+
+/* ============ BOOT ============ */
+(async function init(){
+  populateTypeSelect(document.getElementById("in-type"), true);
+  spawnBubbles();
+  if(!SUPABASE_CONFIGURED){
+    showToast("⚠️ لم يتم ربط قاعدة البيانات بعد — البيانات لن تُحفظ. راجع تعليمات الإعداد.");
+  }
+  await loadDB();
+  await loadSalesDB();
+  await loadResolutions();
+  await loadPaymentsDB();
+  await loadDebtsDB();
+})();
+</script>
+</body>
+</html>
