@@ -1026,6 +1026,31 @@ let PAYMENTS_DB = {}; // { id: {id,date,customerName,itemType,qty,price,grillEna
 // صفحة الدين: المبالغ غير المسددة (دين كامل أو الجزء المتبقي من سداد جزئي)، قابلة للتسديد لاحقًا بشكل كامل أو على دفعات
 let DEBTS_DB = {}; // { id: {id,customerName,itemType,qty,price,grillEnabled,grillQty,grillPrice,itemAmount,debtKind:'debt'|'partial',remainingAmount,createdDate,lastUpdateDate,settled,history:[{date,amountPaid}]} }
 
+/* ============ حالة الاتصال: التقاط نسخة قبل التعديل، والتراجع عنها إن فشل الحفظ في قاعدة البيانات ============ */
+function snapshotGlobals(){
+  return {
+    DB: JSON.stringify(DB),
+    SALES_DB: JSON.stringify(SALES_DB),
+    RESOLUTIONS: JSON.stringify(RESOLUTIONS),
+    PAYMENTS_DB: JSON.stringify(PAYMENTS_DB),
+    DEBTS_DB: JSON.stringify(DEBTS_DB)
+  };
+}
+function restoreGlobals(snap){
+  DB = JSON.parse(snap.DB);
+  SALES_DB = JSON.parse(snap.SALES_DB);
+  RESOLUTIONS = JSON.parse(snap.RESOLUTIONS);
+  PAYMENTS_DB = JSON.parse(snap.PAYMENTS_DB);
+  DEBTS_DB = JSON.parse(snap.DEBTS_DB);
+}
+function showConnErrorToast(){
+  if(navigator.onLine === false){
+    showToast("⚠️ لا يوجد اتصال بالإنترنت. لم يتم حفظ البيانات — تأكد من اتصالك وحاول مرة أخرى.", 4800);
+  } else {
+    showToast("⚠️ تعذر الوصول لقاعدة البيانات. لم يتم حفظ البيانات — تأكد من اتصالك وحاول مرة أخرى.", 4800);
+  }
+}
+
 /* ============ INIT ============ */
 function populateTypeSelect(sel, withPlaceholder){
   sel.innerHTML = "";
@@ -1174,10 +1199,13 @@ async function loadDB(){
   }catch(e){ DB = {}; }
   Object.keys(DB).forEach(key=>{ DB[key] = migrateDayData(DB[key]); });
 }
+// كل دوال save* ترجع true عند نجاح الحفظ الفعلي في قاعدة البيانات السحابية، و false إن فشل
+// (بسبب انقطاع الإنترنت أو تعذر الوصول لقاعدة البيانات) حتى تستطيع الدالة المستدعية التراجع عن التعديل وتنبيه المستخدم
 async function saveDB(){
   try{
-    await window.storage.set(STORAGE_KEY, JSON.stringify(DB), SHARED);
-  }catch(e){ console.error("storage error", e); }
+    const res = await window.storage.set(STORAGE_KEY, JSON.stringify(DB), SHARED);
+    return !!res;
+  }catch(e){ console.error("storage error", e); return false; }
 }
 async function loadSalesDB(){
   try{
@@ -1189,8 +1217,9 @@ async function loadSalesDB(){
 }
 async function saveSalesDB(){
   try{
-    await window.storage.set(SALES_STORAGE_KEY, JSON.stringify(SALES_DB), SHARED);
-  }catch(e){ console.error("storage error", e); }
+    const res = await window.storage.set(SALES_STORAGE_KEY, JSON.stringify(SALES_DB), SHARED);
+    return !!res;
+  }catch(e){ console.error("storage error", e); return false; }
 }
 async function loadResolutions(){
   try{
@@ -1201,8 +1230,9 @@ async function loadResolutions(){
 }
 async function saveResolutions(){
   try{
-    await window.storage.set(RESOLUTIONS_STORAGE_KEY, JSON.stringify(RESOLUTIONS), SHARED);
-  }catch(e){ console.error("storage error", e); }
+    const res = await window.storage.set(RESOLUTIONS_STORAGE_KEY, JSON.stringify(RESOLUTIONS), SHARED);
+    return !!res;
+  }catch(e){ console.error("storage error", e); return false; }
 }
 async function loadPaymentsDB(){
   try{
@@ -1213,8 +1243,9 @@ async function loadPaymentsDB(){
 }
 async function savePaymentsDB(){
   try{
-    await window.storage.set(PAYMENTS_STORAGE_KEY, JSON.stringify(PAYMENTS_DB), SHARED);
-  }catch(e){ console.error("storage error", e); }
+    const res = await window.storage.set(PAYMENTS_STORAGE_KEY, JSON.stringify(PAYMENTS_DB), SHARED);
+    return !!res;
+  }catch(e){ console.error("storage error", e); return false; }
 }
 async function loadDebtsDB(){
   try{
@@ -1225,8 +1256,9 @@ async function loadDebtsDB(){
 }
 async function saveDebtsDB(){
   try{
-    await window.storage.set(DEBTS_STORAGE_KEY, JSON.stringify(DEBTS_DB), SHARED);
-  }catch(e){ console.error("storage error", e); }
+    const res = await window.storage.set(DEBTS_STORAGE_KEY, JSON.stringify(DEBTS_DB), SHARED);
+    return !!res;
+  }catch(e){ console.error("storage error", e); return false; }
 }
 
 /* ============ NAVIGATION ============ */
@@ -1306,12 +1338,19 @@ async function addPurchase(){
   if(!type){ showToast("الرجاء اختيار الصنف"); return; }
   if(qty<=0 || price<=0){ showToast("الرجاء إدخال الكمية والسعر"); return; }
 
+  const _snap = snapshotGlobals();
   const key = todayKey();
   if(!DB[key]){ DB[key] = {day: dayNameOf(key), merchants: []}; }
   // نفس التاجر (بالاسم) يُلحق به الصنف الجديد بدل إنشاء تاجر مكرر
   const m = getOrCreateMerchant(DB[key], merchant);
   m.items.push({id: genId(), type, qty, price, amount});
-  await saveDB();
+  const ok = await saveDB();
+  if(!ok){
+    restoreGlobals(_snap);
+    renderTodayMerchantItems(merchant);
+    showConnErrorToast();
+    return;
+  }
 
   // clear item fields only — نبقي اسم التاجر لتسهيل إضافة صنف آخر له
   document.getElementById("in-type").value="";
@@ -1459,6 +1498,7 @@ async function addSale(){
     if(partialAmount >= amount){ showToast("مبلغ السداد الجزئي يجب أن يكون أقل من المبلغ الكلي — اختر «سداد» إذا تم الدفع بالكامل"); return; }
   }
 
+  const _snap = snapshotGlobals();
   const key = todayKey();
   if(!SALES_DB[key]){ SALES_DB[key] = {day: dayNameOf(key), customers: []}; }
   const c = getOrCreateCustomer(SALES_DB[key], customer);
@@ -1474,7 +1514,7 @@ async function addSale(){
     grill: grillEnabled ? {enabled:true, qty:grillQty, price:grillPrice, amount:grillAmount} : {enabled:false, qty:0, price:0, amount:0},
     payment: {kind: paymentType, paidAmount, debtAmount}
   });
-  await saveSalesDB();
+  let ok = await saveSalesDB();
 
   // إرسال تفاصيل العملية إلى صفحة السداد و/أو صفحة الدين حسب نوع السداد المختار
   const recordBase = {
@@ -1482,13 +1522,20 @@ async function addSale(){
     grillEnabled, grillQty, grillPrice, itemAmount: amount,
     sourceSaleDate: key, sourceItemId: itemId
   };
-  if(paymentType==="full"){
-    await addPaymentRecord({...recordBase, paymentKind:"full", amountPaid:amount, date:key});
-  } else if(paymentType==="partial"){
-    await addPaymentRecord({...recordBase, paymentKind:"partial", amountPaid:partialAmount, date:key});
-    await addDebtRecord({...recordBase, debtKind:"partial", remainingAmount:debtAmount, createdDate:key});
-  } else if(paymentType==="debt"){
-    await addDebtRecord({...recordBase, debtKind:"debt", remainingAmount:amount, createdDate:key});
+  if(ok && paymentType==="full"){
+    ok = await addPaymentRecord({...recordBase, paymentKind:"full", amountPaid:amount, date:key});
+  } else if(ok && paymentType==="partial"){
+    ok = await addPaymentRecord({...recordBase, paymentKind:"partial", amountPaid:partialAmount, date:key});
+    if(ok) ok = await addDebtRecord({...recordBase, debtKind:"partial", remainingAmount:debtAmount, createdDate:key});
+  } else if(ok && paymentType==="debt"){
+    ok = await addDebtRecord({...recordBase, debtKind:"debt", remainingAmount:amount, createdDate:key});
+  }
+
+  if(!ok){
+    restoreGlobals(_snap);
+    renderTodayCustomerItems(customer);
+    showConnErrorToast();
+    return;
   }
 
   // clear item fields only — نبقي اسم الزبون لتسهيل إضافة صنف آخر له
@@ -1526,8 +1573,7 @@ async function addPaymentRecord(data){
     sourceSaleDate: data.sourceSaleDate||null, sourceItemId: data.sourceItemId||null,
     debtId: data.debtId||null
   };
-  await savePaymentsDB();
-  return id;
+  return await savePaymentsDB();
 }
 async function addDebtRecord(data){
   const id = genId();
@@ -1540,8 +1586,7 @@ async function addDebtRecord(data){
     sourceSaleDate: data.sourceSaleDate||null, sourceItemId: data.sourceItemId||null,
     settled: false, history: []
   };
-  await saveDebtsDB();
-  return id;
+  return await saveDebtsDB();
 }
 
 /* -------- صفحة السداد -------- */
@@ -1685,14 +1730,22 @@ async function confirmDebtSettle(id){
   };
 
   if(type==="full"){
+    const _snap = snapshotGlobals();
     const paidNow = d.remainingAmount;
     const kind = paidNow >= d.itemAmount - 1e-9 ? "full" : "partial";
-    await addPaymentRecord({...recordBase, paymentKind:kind, amountPaid:paidNow, date:today, debtId:id});
-    d.remainingAmount = 0;
-    d.settled = true;
-    d.lastUpdateDate = today;
-    d.history.push({date:today, amountPaid:paidNow});
-    await saveDebtsDB();
+    let ok = await addPaymentRecord({...recordBase, paymentKind:kind, amountPaid:paidNow, date:today, debtId:id});
+    if(ok){
+      d.remainingAmount = 0;
+      d.settled = true;
+      d.lastUpdateDate = today;
+      d.history.push({date:today, amountPaid:paidNow});
+      ok = await saveDebtsDB();
+    }
+    if(!ok){
+      restoreGlobals(_snap);
+      showConnErrorToast();
+      return;
+    }
     renderDebtsPage();
     showToast(`تم سداد المبلغ المتبقي لـ "${d.customerName}" وأُرسل إلى صفحة السداد ✅`);
     return;
@@ -1702,11 +1755,19 @@ async function confirmDebtSettle(id){
     const val = parseFloat(document.getElementById(`debt-settle-partial-${id}`).value)||0;
     if(val<=0){ showToast("الرجاء إدخال مبلغ السداد الجزئي"); return; }
     if(val >= d.remainingAmount){ showToast("هذا المبلغ يغطي كامل المتبقي — اختر «سداد» بدلاً من ذلك"); return; }
-    await addPaymentRecord({...recordBase, paymentKind:"partial", amountPaid:val, date:today, debtId:id});
-    d.remainingAmount = Math.round((d.remainingAmount - val)*1000)/1000;
-    d.lastUpdateDate = today;
-    d.history.push({date:today, amountPaid:val});
-    await saveDebtsDB();
+    const _snap = snapshotGlobals();
+    let ok = await addPaymentRecord({...recordBase, paymentKind:"partial", amountPaid:val, date:today, debtId:id});
+    if(ok){
+      d.remainingAmount = Math.round((d.remainingAmount - val)*1000)/1000;
+      d.lastUpdateDate = today;
+      d.history.push({date:today, amountPaid:val});
+      ok = await saveDebtsDB();
+    }
+    if(!ok){
+      restoreGlobals(_snap);
+      showConnErrorToast();
+      return;
+    }
     renderDebtsPage();
     showToast(`تم تسجيل سداد جزئي ${fmtMoney(val)} لـ "${d.customerName}"، والباقي ${fmtMoney(d.remainingAmount)} ما زال دينًا 🟡`);
   }
@@ -1838,6 +1899,7 @@ async function saveEdit(){
   const item = m.items.find(it=>it.id===itemId);
   if(!item) return;
 
+  const _snap = snapshotGlobals();
   const newName = document.getElementById("edit-merchant").value.trim() || m.name;
   item.type = document.getElementById("edit-type").value || item.type;
   item.qty = parseFloat(document.getElementById("edit-qty").value) || item.qty;
@@ -1854,7 +1916,12 @@ async function saveEdit(){
     }
   }
 
-  await saveDB();
+  const ok = await saveDB();
+  if(!ok){
+    restoreGlobals(_snap);
+    showConnErrorToast();
+    return;
+  }
   closeEdit();
   renderDetailTable();
   showToast("تم حفظ التعديلات بنجاح");
@@ -1877,6 +1944,7 @@ function closeConfirm(){
 }
 async function confirmDelete(){
   if(!pendingDelete) return;
+  const _snap = snapshotGlobals();
   if(pendingDelete.kind==='sale'){
     const {date, ownerId, itemId} = pendingDelete;
     const dayData = SALES_DB[date];
@@ -1887,7 +1955,12 @@ async function confirmDelete(){
         dayData.customers = dayData.customers.filter(cc=>cc.id!==ownerId);
       }
     }
-    await saveSalesDB();
+    const ok = await saveSalesDB();
+    if(!ok){
+      restoreGlobals(_snap);
+      showConnErrorToast();
+      return;
+    }
     closeConfirm();
     renderSalesDetailTable();
     showToast("تم حذف الصنف بنجاح");
@@ -1902,7 +1975,12 @@ async function confirmDelete(){
       dayData.merchants = dayData.merchants.filter(mm=>mm.id!==ownerId);
     }
   }
-  await saveDB();
+  const ok = await saveDB();
+  if(!ok){
+    restoreGlobals(_snap);
+    showConnErrorToast();
+    return;
+  }
   closeConfirm();
   renderDetailTable();
   showToast("تم حذف الصنف بنجاح");
@@ -2069,6 +2147,7 @@ async function saveSaleEdit(){
     return;
   }
 
+  const _snap = snapshotGlobals();
   const newName = document.getElementById("sale-edit-customer").value.trim() || c.name;
   item.type = newType;
   item.qty = newQty;
@@ -2086,7 +2165,12 @@ async function saveSaleEdit(){
     }
   }
 
-  await saveSalesDB();
+  const ok = await saveSalesDB();
+  if(!ok){
+    restoreGlobals(_snap);
+    showConnErrorToast();
+    return;
+  }
   closeSaleEdit();
   renderSalesDetailTable();
   showToast("تم حفظ التعديلات بنجاح");
@@ -2218,9 +2302,15 @@ function renderInventoryDetailTable(){
 async function resolveInventory(date, type, action){
   const remaining = getRemainingForDay(date, type);
   if(remaining<=0.0001) return;
+  const _snap = snapshotGlobals();
   if(!RESOLUTIONS[date]) RESOLUTIONS[date] = {};
   RESOLUTIONS[date][type] = {status: action, remaining, resolvedAt: Date.now()};
-  await saveResolutions();
+  const ok = await saveResolutions();
+  if(!ok){
+    restoreGlobals(_snap);
+    showConnErrorToast();
+    return;
+  }
   renderInventoryDetailTable();
   renderInventoryList();
   showToast(action==='rolled'
@@ -2230,12 +2320,12 @@ async function resolveInventory(date, type, action){
 
 /* ============ TOAST ============ */
 let toastTimer=null;
-function showToast(msg){
+function showToast(msg, duration){
   const t = document.getElementById("toast");
   document.getElementById("toast-msg").textContent = msg;
   t.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(()=>t.classList.remove("show"), 3200);
+  toastTimer = setTimeout(()=>t.classList.remove("show"), duration || 3200);
 }
 
 /* ============ BOOT ============ */
