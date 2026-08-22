@@ -236,6 +236,20 @@
   .btn-block{width:100%;}
   .btn-row{display:flex;gap:12px;flex-wrap:wrap;}
 
+  /* ---------- HEADER DANGER BUTTON (تفريغ / إعادة تعيين) ---------- */
+  .header-danger-btn{
+    margin-inline-start:auto;
+    display:flex;align-items:center;gap:6px;flex-shrink:0;
+    background:#fff;color:var(--danger);border:1.5px solid var(--danger);
+    padding:9px 14px;border-radius:10px;font-size:12.5px;font-weight:700;
+    white-space:nowrap;cursor:pointer;transition:background .15s;
+  }
+  .header-danger-btn:hover{background:#FBE9E6;}
+  @media(max-width:560px){
+    .header-danger-btn{padding:8px 10px;font-size:11.5px;}
+    .header-danger-btn .hdb-label{display:none;}
+  }
+
   /* ---------- ARCHIVE LIST ---------- */
   .date-card{
     display:flex;align-items:center;justify-content:space-between;
@@ -601,6 +615,7 @@
       <div class="page-header">
         <button class="back-btn" onclick="goTo('home')">→</button>
         <h2 class="page-title">أرشيف المشتريات<small>اضغط على أي تاريخ لعرض التفاصيل</small></h2>
+        <button class="header-danger-btn" onclick="askBulkAction('resetPurchases')">🗑️<span class="hdb-label">إعادة تعيين الأرشيف</span></button>
       </div>
       <div id="archive-list"></div>
     </div>
@@ -732,6 +747,7 @@
       <div class="page-header">
         <button class="back-btn" onclick="goTo('home')">→</button>
         <h2 class="page-title">أرشيف المبيعات<small>اضغط على أي تاريخ لعرض التفاصيل</small></h2>
+        <button class="header-danger-btn" onclick="askBulkAction('resetSales')">🗑️<span class="hdb-label">إعادة تعيين الأرشيف</span></button>
       </div>
       <div id="sales-archive-list"></div>
     </div>
@@ -779,6 +795,7 @@
       <div class="page-header">
         <button class="back-btn" onclick="goTo('home')">→</button>
         <h2 class="page-title">صفحة السداد<small>كل عمليات السداد الكامل والجزئي موثّقة بالتاريخ</small></h2>
+        <button class="header-danger-btn" onclick="askBulkAction('emptyPayments')">🗑️<span class="hdb-label">تفريغ الصفحة</span></button>
       </div>
 
       <div class="grand-total">
@@ -838,6 +855,7 @@
       <div class="page-header">
         <button class="back-btn" onclick="goTo('home')">→</button>
         <h2 class="page-title">صفحة الدين<small>ديون الزبائن الكاملة والجزئية، مع إمكانية السداد من هنا</small></h2>
+        <button class="header-danger-btn" onclick="askBulkAction('emptyDebts')">🗑️<span class="hdb-label">تفريغ الصفحة</span></button>
       </div>
 
       <div class="grand-total">
@@ -867,6 +885,7 @@
       <div class="page-header">
         <button class="back-btn" onclick="goTo('home')">→</button>
         <h2 class="page-title">صفحة الجرد<small>قارن مشتريات اليوم بمبيعاته ورحّل أو أتلف المتبقي</small></h2>
+        <button class="header-danger-btn" onclick="askBulkAction('emptyInventory')">🗑️<span class="hdb-label">تفريغ الصفحة</span></button>
       </div>
       <div id="inventory-list"></div>
     </div>
@@ -934,6 +953,18 @@
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeConfirm()">لا</button>
       <button class="btn btn-primary" style="background:var(--danger);box-shadow:0 8px 18px rgba(178,58,46,.35);" onclick="confirmDelete()">نعم، احذف</button>
+    </div>
+  </div>
+</div>
+
+<!-- BULK CLEAR / RESET CONFIRM MODAL -->
+<div class="modal-overlay" id="bulk-confirm-overlay">
+  <div class="modal-box">
+    <h3 id="bulk-confirm-title">تأكيد العملية</h3>
+    <p id="bulk-confirm-text">هل أنت متأكد؟</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeBulkConfirm()">لا</button>
+      <button class="btn btn-primary" style="background:var(--danger);box-shadow:0 8px 18px rgba(178,58,46,.35);" onclick="confirmBulkAction()">نعم، متابعة</button>
     </div>
   </div>
 </div>
@@ -1204,7 +1235,10 @@ let DEBTS_DB = {}; // { id: {id,customerName,itemType,qty,price,grillEnabled,gri
 
 // سجل "شواهد" العناصر المحذوفة (تاجر/زبون/صنف) — يُستخدم فقط عند دمج نسخة هذا
 // الجهاز مع نسخة جهاز آخر بعد انقطاع، كي لا يعود عنصر حذفته بالغلط من جهاز آخر
-let TOMBSTONES_DB = { merchants:{}, customers:{}, items:{}, debts:{}, payments:{} };
+let TOMBSTONES_DB = { merchants:{}, customers:{}, items:{}, debts:{}, payments:{}, datesPurchases:{}, datesSales:{}, resolutions:{} };
+// datesPurchases/datesSales: تُسجَّل فيها تواريخ الأيام التي حُذفت بالكامل عبر "إعادة تعيين الأرشيف"
+// حتى لا تعود بالغلط عند دمج بيانات جهاز آخر لم يستلم الحذف بعد.
+// resolutions: تُسجَّل فيها مفاتيح "تاريخ|صنف" التي أُلغي قرار ترحيلها/إتلافها عبر "تفريغ صفحة الجرد".
 
 /* ============ حالة الاتصال: التقاط نسخة قبل التعديل، والتراجع عنها إن فشل الحفظ في قاعدة البيانات ============ */
 function snapshotGlobals(){
@@ -1256,9 +1290,11 @@ function mergeStores(key, local, remote){
       const listField = key===STORAGE_KEY ? "merchants" : "customers";
       const ownerTomb = key===STORAGE_KEY ? (TOMBSTONES_DB.merchants||{}) : (TOMBSTONES_DB.customers||{});
       const itemTomb = TOMBSTONES_DB.items||{};
+      const dateTomb = key===STORAGE_KEY ? (TOMBSTONES_DB.datesPurchases||{}) : (TOMBSTONES_DB.datesSales||{});
       const dates = new Set([...Object.keys(local), ...Object.keys(remote)]);
       const merged = {};
       dates.forEach(date=>{
+        if(dateTomb[date]) return; // اليوم حُذف بالكامل عبر "إعادة تعيين الأرشيف": لا يُعاد مهما كان في النسخة الأخرى
         const l = local[date], r = remote[date];
         if(!l){ merged[date] = r; return; }
         if(!r){ merged[date] = l; return; }
@@ -1273,9 +1309,14 @@ function mergeStores(key, local, remote){
       return merged;
     }
     if(key===RESOLUTIONS_STORAGE_KEY){
+      const resTomb = TOMBSTONES_DB.resolutions||{};
       const dates = new Set([...Object.keys(local), ...Object.keys(remote)]);
       const merged = {};
-      dates.forEach(date=> merged[date] = {...(remote[date]||{}), ...(local[date]||{})});
+      dates.forEach(date=>{
+        const combined = {...(remote[date]||{}), ...(local[date]||{})};
+        Object.keys(combined).forEach(type=>{ if(resTomb[date+"|"+type]) delete combined[type]; });
+        if(Object.keys(combined).length) merged[date] = combined;
+      });
       return merged;
     }
     if(key===PAYMENTS_STORAGE_KEY){
@@ -1533,6 +1574,9 @@ async function loadTombstonesDB(){
   if(!TOMBSTONES_DB.items) TOMBSTONES_DB.items = {};
   if(!TOMBSTONES_DB.debts) TOMBSTONES_DB.debts = {};
   if(!TOMBSTONES_DB.payments) TOMBSTONES_DB.payments = {};
+  if(!TOMBSTONES_DB.datesPurchases) TOMBSTONES_DB.datesPurchases = {};
+  if(!TOMBSTONES_DB.datesSales) TOMBSTONES_DB.datesSales = {};
+  if(!TOMBSTONES_DB.resolutions) TOMBSTONES_DB.resolutions = {};
 }
 async function saveTombstonesDB(){
   try{
@@ -2302,6 +2346,122 @@ async function confirmDelete(){
     renderDetailTable();
   }
   showToast("تم حذف الصنف بنجاح");
+}
+
+/* ============ تفريغ الصفحة / إعادة تعيين الأرشيف من الصفر ============
+   نظام منفصل عن حذف الصنف الواحد أعلاه: يتعامل مع تفريغ صفحة كاملة
+   (سداد / دين / جرد) أو إعادة تعيين أرشيف كامل (مشتريات / مبيعات) من
+   الصفر. كل عملية تُسجَّل في TOMBSTONES_DB أولًا حتى لا تعود البيانات
+   بالغلط عند مزامنة جهاز آخر لم يستلم الحذف بعد، ثم تُحذف فعليًا وبشكل
+   دائم من قاعدة البيانات السحابية (لا يوجد أي تراجع بعد التأكيد). */
+let pendingBulkAction = null; // 'emptyPayments'|'emptyDebts'|'emptyInventory'|'resetPurchases'|'resetSales'
+
+const BULK_ACTION_MESSAGES = {
+  emptyPayments: {
+    title: "تفريغ صفحة السداد",
+    text: "سيتم حذف كل سجلات السداد (الكامل والجزئي) نهائيًا من قاعدة البيانات وستعود الصفحة فارغة كما كانت. هذا الإجراء لا يمكن التراجع عنه. هل أنت متأكد؟"
+  },
+  emptyDebts: {
+    title: "تفريغ صفحة الدين",
+    text: "سيتم حذف كل سجلات الدين (الكاملة والجزئية) نهائيًا من قاعدة البيانات وستعود الصفحة فارغة كما كانت. هذا الإجراء لا يمكن التراجع عنه. هل أنت متأكد؟"
+  },
+  emptyInventory: {
+    title: "تفريغ صفحة الجرد",
+    text: "سيتم إلغاء كل قرارات الترحيل والإتلاف المسجّلة نهائيًا من قاعدة البيانات، وستعود كل الأصناف إلى حالة \"بحاجة لمراجعة\" كما كانت أول مرة. (أيام أرشيف المشتريات والمبيعات نفسها لن تُحذف من هنا). هذا الإجراء لا يمكن التراجع عنه. هل أنت متأكد؟"
+  },
+  resetPurchases: {
+    title: "إعادة تعيين أرشيف المشتريات",
+    text: "⚠️ سيتم حذف كل أرشيف المشتريات بكل أيامه وتجاره وأصنافه نهائيًا من قاعدة البيانات، وستبدأ الصفحة من الصفر تمامًا. هذا الإجراء لا يمكن التراجع عنه إطلاقًا. هل أنت متأكد من المتابعة؟"
+  },
+  resetSales: {
+    title: "إعادة تعيين أرشيف المبيعات",
+    text: "⚠️ سيتم حذف كل أرشيف المبيعات بكل أيامه وزبائنه وأصنافه نهائيًا من قاعدة البيانات، وستبدأ الصفحة من الصفر تمامًا. (سجلات السداد والدين المرتبطة تبقى كما هي ولا تُحذف من هنا). هذا الإجراء لا يمكن التراجع عنه إطلاقًا. هل أنت متأكد من المتابعة؟"
+  }
+};
+
+function askBulkAction(kind){
+  const m = BULK_ACTION_MESSAGES[kind];
+  if(!m) return;
+  pendingBulkAction = kind;
+  document.getElementById("bulk-confirm-title").textContent = m.title;
+  document.getElementById("bulk-confirm-text").textContent = m.text;
+  document.getElementById("bulk-confirm-overlay").classList.add("active");
+}
+function closeBulkConfirm(){
+  document.getElementById("bulk-confirm-overlay").classList.remove("active");
+  pendingBulkAction = null;
+}
+async function confirmBulkAction(){
+  const kind = pendingBulkAction;
+  if(!kind) return;
+  closeBulkConfirm();
+  const _snap = snapshotGlobals();
+
+  if(kind==="emptyPayments"){
+    Object.keys(PAYMENTS_DB).forEach(id=>{ TOMBSTONES_DB.payments[id] = Date.now(); });
+    PAYMENTS_DB = {};
+    await saveTombstonesDB();
+    const ok = await savePaymentsDB();
+    if(!ok){ restoreGlobals(_snap); showConnErrorToast(); return; }
+    renderPaymentsPage();
+    showToast("تم تفريغ صفحة السداد بالكامل");
+    return;
+  }
+
+  if(kind==="emptyDebts"){
+    Object.keys(DEBTS_DB).forEach(id=>{ TOMBSTONES_DB.debts[id] = Date.now(); });
+    DEBTS_DB = {};
+    await saveTombstonesDB();
+    const ok = await saveDebtsDB();
+    if(!ok){ restoreGlobals(_snap); showConnErrorToast(); return; }
+    renderDebtsPage();
+    showToast("تم تفريغ صفحة الدين بالكامل");
+    return;
+  }
+
+  if(kind==="emptyInventory"){
+    if(!TOMBSTONES_DB.resolutions) TOMBSTONES_DB.resolutions = {};
+    Object.keys(RESOLUTIONS).forEach(date=>{
+      Object.keys(RESOLUTIONS[date]).forEach(type=>{
+        TOMBSTONES_DB.resolutions[date+"|"+type] = Date.now();
+      });
+    });
+    RESOLUTIONS = {};
+    await saveTombstonesDB();
+    const ok = await saveResolutions();
+    if(!ok){ restoreGlobals(_snap); showConnErrorToast(); return; }
+    renderInventoryList();
+    showToast("تم تفريغ صفحة الجرد بالكامل");
+    return;
+  }
+
+  if(kind==="resetPurchases"){
+    if(!TOMBSTONES_DB.datesPurchases) TOMBSTONES_DB.datesPurchases = {};
+    Object.keys(DB).forEach(date=>{ TOMBSTONES_DB.datesPurchases[date] = Date.now(); });
+    DB = {};
+    await saveTombstonesDB();
+    const ok = await saveDB();
+    if(!ok){ restoreGlobals(_snap); showConnErrorToast(); return; }
+    renderArchiveList();
+    renderInventoryList();
+    goTo("archive");
+    showToast("تم إعادة تعيين أرشيف المشتريات من الصفر");
+    return;
+  }
+
+  if(kind==="resetSales"){
+    if(!TOMBSTONES_DB.datesSales) TOMBSTONES_DB.datesSales = {};
+    Object.keys(SALES_DB).forEach(date=>{ TOMBSTONES_DB.datesSales[date] = Date.now(); });
+    SALES_DB = {};
+    await saveTombstonesDB();
+    const ok = await saveSalesDB();
+    if(!ok){ restoreGlobals(_snap); showConnErrorToast(); return; }
+    renderSalesArchiveList();
+    renderInventoryList();
+    goTo("sales-archive");
+    showToast("تم إعادة تعيين أرشيف المبيعات من الصفر");
+    return;
+  }
 }
 
 /* ============ SALES ARCHIVE LIST ============ */
