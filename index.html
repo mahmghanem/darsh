@@ -615,7 +615,7 @@
       <div class="page-header">
         <button class="back-btn" onclick="goTo('home')">→</button>
         <h2 class="page-title">أرشيف المشتريات<small>اضغط على أي تاريخ لعرض التفاصيل</small></h2>
-        <button class="header-danger-btn" onclick="askBulkAction('resetPurchases')">🗑️<span class="hdb-label">إعادة تعيين الأرشيف</span></button>
+        <button class="header-danger-btn" onclick="askBulkAction('resetPurchases')">🗑️<span class="hdb-label">حذف الأرشيف نهائيًا</span></button>
       </div>
       <div id="archive-list"></div>
     </div>
@@ -747,7 +747,7 @@
       <div class="page-header">
         <button class="back-btn" onclick="goTo('home')">→</button>
         <h2 class="page-title">أرشيف المبيعات<small>اضغط على أي تاريخ لعرض التفاصيل</small></h2>
-        <button class="header-danger-btn" onclick="askBulkAction('resetSales')">🗑️<span class="hdb-label">إعادة تعيين الأرشيف</span></button>
+        <button class="header-danger-btn" onclick="askBulkAction('resetSales')">🗑️<span class="hdb-label">حذف الأرشيف نهائيًا</span></button>
       </div>
       <div id="sales-archive-list"></div>
     </div>
@@ -795,7 +795,7 @@
       <div class="page-header">
         <button class="back-btn" onclick="goTo('home')">→</button>
         <h2 class="page-title">صفحة السداد<small>كل عمليات السداد الكامل والجزئي موثّقة بالتاريخ</small></h2>
-        <button class="header-danger-btn" onclick="askBulkAction('emptyPayments')">🗑️<span class="hdb-label">تفريغ الصفحة</span></button>
+        <button class="header-danger-btn" onclick="askBulkAction('emptyPayments')">🗑️<span class="hdb-label">حذف نهائي</span></button>
       </div>
 
       <div class="grand-total">
@@ -855,7 +855,7 @@
       <div class="page-header">
         <button class="back-btn" onclick="goTo('home')">→</button>
         <h2 class="page-title">صفحة الدين<small>ديون الزبائن الكاملة والجزئية، مع إمكانية السداد من هنا</small></h2>
-        <button class="header-danger-btn" onclick="askBulkAction('emptyDebts')">🗑️<span class="hdb-label">تفريغ الصفحة</span></button>
+        <button class="header-danger-btn" onclick="askBulkAction('emptyDebts')">🗑️<span class="hdb-label">حذف نهائي</span></button>
       </div>
 
       <div class="grand-total">
@@ -885,7 +885,7 @@
       <div class="page-header">
         <button class="back-btn" onclick="goTo('home')">→</button>
         <h2 class="page-title">صفحة الجرد<small>قارن مشتريات اليوم بمبيعاته ورحّل أو أتلف المتبقي</small></h2>
-        <button class="header-danger-btn" onclick="askBulkAction('emptyInventory')">🗑️<span class="hdb-label">تفريغ الصفحة</span></button>
+        <button class="header-danger-btn" onclick="askBulkAction('emptyInventory')">🗑️<span class="hdb-label">حذف نهائي</span></button>
       </div>
       <div id="inventory-list"></div>
     </div>
@@ -1062,6 +1062,34 @@ async function localSet(record){
     tx.onerror = ()=> reject(tx.error);
   });
 }
+async function localDelete(key){
+  const db = await getLocalDB();
+  return new Promise((resolve,reject)=>{
+    const tx = db.transaction(LOCAL_STORE,"readwrite");
+    tx.objectStore(LOCAL_STORE).delete(key);
+    tx.oncomplete = ()=> resolve(true);
+    tx.onerror = ()=> reject(tx.error);
+  });
+}
+/* حذف نهائي وحقيقي لمفتاح كامل: يمسح الصف بالكامل من جدول app_kv في
+   Supabase (وليس فقط تفريغ قيمته إلى "{}")، بالإضافة لمسحه من التخزين
+   المحلي IndexedDB على هذا الجهاز. تُستخدم في أزرار "حذف نهائي/إعادة
+   تعيين" حيث لا يجب أن يبقى أي أثر للبيانات في أي مكان. ترجع true فقط
+   إذا نجح الحذف السحابي فعليًا (أو لم تكن هناك قاعدة بيانات مربوطة أصلًا) */
+async function hardDeleteStorageKey(storageKey){
+  let cloudOk = true;
+  if(SUPABASE_CONFIGURED){
+    try{
+      const { error } = await supabaseClient.from("app_kv").delete().eq("key", storageKey);
+      if(error){ console.error("تعذّر الحذف السحابي", storageKey, error); cloudOk = false; }
+    }catch(e){ console.error("تعذّر الحذف السحابي", storageKey, e); cloudOk = false; }
+    if(navigator.onLine === false) cloudOk = false; // لا اتصال الآن: لم يُحذف من السحابة فعليًا بعد
+  }
+  try{ await localDelete(storageKey); }catch(e){ console.warn("تعذّر الحذف المحلي", storageKey, e); }
+  PENDING_SYNC_KEYS.delete(storageKey);
+  markUnsyncedUI();
+  return cloudOk;
+}
 
 /* حالة المزامنة: أي مفاتيح لديها تعديلات محلية لم تصل للسحابة بعد */
 let PENDING_SYNC_KEYS = new Set();
@@ -1212,6 +1240,20 @@ const DEBTS_STORAGE_KEY = "debts_archive_v1";
 const TOMBSTONES_STORAGE_KEY = "tombstones_v1"; // سجل العناصر المحذوفة، يمنع عودتها بالغلط بعد دمج بيانات جهازين
 const SHARED = true; // shared ledger so the whole team sees the same purchases
 const ALL_SYNC_KEYS = [STORAGE_KEY, SALES_STORAGE_KEY, RESOLUTIONS_STORAGE_KEY, PAYMENTS_STORAGE_KEY, DEBTS_STORAGE_KEY, TOMBSTONES_STORAGE_KEY];
+
+/* حذف نهائي معلّق: مفاتيح طُلب حذفها نهائيًا من السحابة (زر "حذف كامل")
+   لكن تعذّر تنفيذ الحذف السحابي فورًا (بلا اتصال وقتها)، فتبقى هنا حتى
+   يعود الاتصال فتُعاد محاولة حذفها فعليًا من قاعدة البيانات. تُستبعد من
+   أي عملية "سحب/دمج" عادية طالما لم يكتمل حذفها الفعلي، حتى لا تعود
+   بياناتها القديمة من السحابة بالغلط قبل أن يُتاح حذفها. */
+let PENDING_HARD_DELETE_KEYS = new Set();
+async function retryPendingHardDeletes(){
+  if(!SUPABASE_CONFIGURED || navigator.onLine === false) return;
+  for(const key of Array.from(PENDING_HARD_DELETE_KEYS)){
+    const ok = await hardDeleteStorageKey(key);
+    if(ok) PENDING_HARD_DELETE_KEYS.delete(key);
+  }
+}
 
 let DB = {}; // { "2026-08-20": { day:"الخميس", merchants:[{id,name,items:[{id,type,qty,price,amount}]}] } }
 let currentDetailDate = null;
@@ -2358,24 +2400,24 @@ let pendingBulkAction = null; // 'emptyPayments'|'emptyDebts'|'emptyInventory'|'
 
 const BULK_ACTION_MESSAGES = {
   emptyPayments: {
-    title: "تفريغ صفحة السداد",
-    text: "سيتم حذف كل سجلات السداد (الكامل والجزئي) نهائيًا من قاعدة البيانات وستعود الصفحة فارغة كما كانت. هذا الإجراء لا يمكن التراجع عنه. هل أنت متأكد؟"
+    title: "حذف صفحة السداد نهائيًا",
+    text: "سيتم حذف كل سجلات السداد (الكامل والجزئي) حذفًا نهائيًا من قاعدة البيانات السحابية نفسها (وليس فقط من الشاشة)، ولن يبقى لها أي أثر في أي مكان. هذا الإجراء لا يمكن التراجع عنه إطلاقًا. هل أنت متأكد؟"
   },
   emptyDebts: {
-    title: "تفريغ صفحة الدين",
-    text: "سيتم حذف كل سجلات الدين (الكاملة والجزئية) نهائيًا من قاعدة البيانات وستعود الصفحة فارغة كما كانت. هذا الإجراء لا يمكن التراجع عنه. هل أنت متأكد؟"
+    title: "حذف صفحة الدين نهائيًا",
+    text: "سيتم حذف كل سجلات الدين (الكاملة والجزئية) حذفًا نهائيًا من قاعدة البيانات السحابية نفسها (وليس فقط من الشاشة)، ولن يبقى لها أي أثر في أي مكان. هذا الإجراء لا يمكن التراجع عنه إطلاقًا. هل أنت متأكد؟"
   },
   emptyInventory: {
-    title: "تفريغ صفحة الجرد",
-    text: "سيتم إلغاء كل قرارات الترحيل والإتلاف المسجّلة نهائيًا من قاعدة البيانات، وستعود كل الأصناف إلى حالة \"بحاجة لمراجعة\" كما كانت أول مرة. (أيام أرشيف المشتريات والمبيعات نفسها لن تُحذف من هنا). هذا الإجراء لا يمكن التراجع عنه. هل أنت متأكد؟"
+    title: "حذف صفحة الجرد نهائيًا",
+    text: "سيتم حذف كل قرارات الترحيل والإتلاف المسجّلة حذفًا نهائيًا من قاعدة البيانات السحابية نفسها. (ملاحظة: أيام أرشيف المشتريات والمبيعات نفسها لن تُحذف من هنا؛ لحذفها كاملة استخدم زري \"حذف الأرشيف\" في صفحتي الأرشيف). هذا الإجراء لا يمكن التراجع عنه إطلاقًا. هل أنت متأكد؟"
   },
   resetPurchases: {
-    title: "إعادة تعيين أرشيف المشتريات",
-    text: "⚠️ سيتم حذف كل أرشيف المشتريات بكل أيامه وتجاره وأصنافه نهائيًا من قاعدة البيانات، وستبدأ الصفحة من الصفر تمامًا. هذا الإجراء لا يمكن التراجع عنه إطلاقًا. هل أنت متأكد من المتابعة؟"
+    title: "حذف أرشيف المشتريات نهائيًا",
+    text: "⚠️ سيتم حذف كل أرشيف المشتريات بكل أيامه وتجاره وأصنافه حذفًا نهائيًا من قاعدة البيانات السحابية نفسها (وليس فقط من الشاشة)، ولن يبقى له أي أثر في أي مكان. هذا الإجراء لا يمكن التراجع عنه إطلاقًا. هل أنت متأكد من المتابعة؟"
   },
   resetSales: {
-    title: "إعادة تعيين أرشيف المبيعات",
-    text: "⚠️ سيتم حذف كل أرشيف المبيعات بكل أيامه وزبائنه وأصنافه نهائيًا من قاعدة البيانات، وستبدأ الصفحة من الصفر تمامًا. (سجلات السداد والدين المرتبطة تبقى كما هي ولا تُحذف من هنا). هذا الإجراء لا يمكن التراجع عنه إطلاقًا. هل أنت متأكد من المتابعة؟"
+    title: "حذف أرشيف المبيعات نهائيًا",
+    text: "⚠️ سيتم حذف كل أرشيف المبيعات بكل أيامه وزبائنه وأصنافه حذفًا نهائيًا من قاعدة البيانات السحابية نفسها (وليس فقط من الشاشة)، ولن يبقى له أي أثر في أي مكان. (سجلات السداد والدين المرتبطة تبقى كما هي ولا تُحذف من هنا). هذا الإجراء لا يمكن التراجع عنه إطلاقًا. هل أنت متأكد من المتابعة؟"
   }
 };
 
@@ -2395,72 +2437,33 @@ async function confirmBulkAction(){
   const kind = pendingBulkAction;
   if(!kind) return;
   closeBulkConfirm();
-  const _snap = snapshotGlobals();
 
-  if(kind==="emptyPayments"){
-    Object.keys(PAYMENTS_DB).forEach(id=>{ TOMBSTONES_DB.payments[id] = Date.now(); });
-    PAYMENTS_DB = {};
-    await saveTombstonesDB();
-    const ok = await savePaymentsDB();
-    if(!ok){ restoreGlobals(_snap); showConnErrorToast(); return; }
-    renderPaymentsPage();
-    showToast("تم تفريغ صفحة السداد بالكامل");
-    return;
-  }
+  // خرائط: أي مفتاح تخزين سحابي سيُحذف نهائيًا، وأي دالة تُصفّر المتغير في الذاكرة، وأي دالة إعادة رسم
+  const KIND_MAP = {
+    emptyPayments:  { storageKey: PAYMENTS_STORAGE_KEY,     clear: ()=>{ PAYMENTS_DB = {}; },  render: renderPaymentsPage,      successMsg: "تم حذف كل بيانات صفحة السداد نهائيًا من قاعدة البيانات" },
+    emptyDebts:     { storageKey: DEBTS_STORAGE_KEY,        clear: ()=>{ DEBTS_DB = {}; },      render: renderDebtsPage,         successMsg: "تم حذف كل بيانات صفحة الدين نهائيًا من قاعدة البيانات" },
+    emptyInventory: { storageKey: RESOLUTIONS_STORAGE_KEY,  clear: ()=>{ RESOLUTIONS = {}; },   render: renderInventoryList,     successMsg: "تم حذف كل بيانات الجرد (قرارات الترحيل/الإتلاف) نهائيًا من قاعدة البيانات" },
+    resetPurchases: { storageKey: STORAGE_KEY,              clear: ()=>{ DB = {}; },            render: ()=>{ renderArchiveList(); renderInventoryList(); goTo("archive"); }, successMsg: "تم حذف كل أرشيف المشتريات نهائيًا من قاعدة البيانات" },
+    resetSales:     { storageKey: SALES_STORAGE_KEY,        clear: ()=>{ SALES_DB = {}; },      render: ()=>{ renderSalesArchiveList(); renderInventoryList(); goTo("sales-archive"); }, successMsg: "تم حذف كل أرشيف المبيعات نهائيًا من قاعدة البيانات" }
+  };
+  const cfg = KIND_MAP[kind];
+  if(!cfg) return;
 
-  if(kind==="emptyDebts"){
-    Object.keys(DEBTS_DB).forEach(id=>{ TOMBSTONES_DB.debts[id] = Date.now(); });
-    DEBTS_DB = {};
-    await saveTombstonesDB();
-    const ok = await saveDebtsDB();
-    if(!ok){ restoreGlobals(_snap); showConnErrorToast(); return; }
-    renderDebtsPage();
-    showToast("تم تفريغ صفحة الدين بالكامل");
-    return;
-  }
+  // 1) صفّر المتغير في الذاكرة فورًا، وحدّث الواجهة فورًا (لا ننتظر الشبكة)
+  cfg.clear();
+  cfg.render();
 
-  if(kind==="emptyInventory"){
-    if(!TOMBSTONES_DB.resolutions) TOMBSTONES_DB.resolutions = {};
-    Object.keys(RESOLUTIONS).forEach(date=>{
-      Object.keys(RESOLUTIONS[date]).forEach(type=>{
-        TOMBSTONES_DB.resolutions[date+"|"+type] = Date.now();
-      });
-    });
-    RESOLUTIONS = {};
-    await saveTombstonesDB();
-    const ok = await saveResolutions();
-    if(!ok){ restoreGlobals(_snap); showConnErrorToast(); return; }
-    renderInventoryList();
-    showToast("تم تفريغ صفحة الجرد بالكامل");
-    return;
-  }
+  // 2) احذف الصف نهائيًا من قاعدة البيانات السحابية بالكامل (DELETE حقيقي، وليس مجرد تفريغ القيمة)
+  //    + احذفه من التخزين المحلي IndexedDB على هذا الجهاز أيضًا
+  const cloudDeleted = await hardDeleteStorageKey(cfg.storageKey);
 
-  if(kind==="resetPurchases"){
-    if(!TOMBSTONES_DB.datesPurchases) TOMBSTONES_DB.datesPurchases = {};
-    Object.keys(DB).forEach(date=>{ TOMBSTONES_DB.datesPurchases[date] = Date.now(); });
-    DB = {};
-    await saveTombstonesDB();
-    const ok = await saveDB();
-    if(!ok){ restoreGlobals(_snap); showConnErrorToast(); return; }
-    renderArchiveList();
-    renderInventoryList();
-    goTo("archive");
-    showToast("تم إعادة تعيين أرشيف المشتريات من الصفر");
-    return;
-  }
-
-  if(kind==="resetSales"){
-    if(!TOMBSTONES_DB.datesSales) TOMBSTONES_DB.datesSales = {};
-    Object.keys(SALES_DB).forEach(date=>{ TOMBSTONES_DB.datesSales[date] = Date.now(); });
-    SALES_DB = {};
-    await saveTombstonesDB();
-    const ok = await saveSalesDB();
-    if(!ok){ restoreGlobals(_snap); showConnErrorToast(); return; }
-    renderSalesArchiveList();
-    renderInventoryList();
-    goTo("sales-archive");
-    showToast("تم إعادة تعيين أرشيف المبيعات من الصفر");
-    return;
+  if(cloudDeleted){
+    showToast("✅ " + cfg.successMsg);
+  } else {
+    // تعذّر الحذف السحابي الآن (غالبًا بسبب انقطاع الاتصال): البيانات مسحت من هذا الجهاز فورًا،
+    // وسجّلنا الطلب لإعادة محاولة حذفه من قاعدة البيانات تلقائيًا فور عودة الاتصال
+    PENDING_HARD_DELETE_KEYS.add(cfg.storageKey);
+    showToast("⚠️ تم مسح البيانات من هذا الجهاز، لكن تعذّر حذفها من قاعدة البيانات السحابية الآن (تحقق من الاتصال). سيُعاد حذفها نهائيًا تلقائيًا فور عودة الاتصال.", 5500);
   }
 }
 
@@ -2843,9 +2846,11 @@ window.addEventListener("beforeunload", function(e){
 window.addEventListener("online", ()=>{
   updateSyncBadge();
   showToast("✅ عاد الاتصال بالإنترنت — جاري مزامنة البيانات تلقائيًا...", 3500);
-  syncAllPending();
-  Promise.all(ALL_SYNC_KEYS.map(k=>pullAndMergeIfNeeded(k))).then(results=>{
-    if(results.some(Boolean)) reloadAllFromLocal();
+  retryPendingHardDeletes().then(()=>{
+    syncAllPending();
+    Promise.all(syncKeysExcludingPendingDeletes().map(k=>pullAndMergeIfNeeded(k))).then(results=>{
+      if(results.some(Boolean)) reloadAllFromLocal();
+    });
   });
 });
 window.addEventListener("offline", ()=>{
@@ -2861,6 +2866,9 @@ async function reloadAllFromLocal(){
   await loadDebtsDB();
   await loadTombstonesDB();
   refreshAllViews();
+}
+function syncKeysExcludingPendingDeletes(){
+  return ALL_SYNC_KEYS.filter(k=> !PENDING_HARD_DELETE_KEYS.has(k));
 }
 
 /* ============ BOOT ============ */
@@ -2882,8 +2890,9 @@ async function reloadAllFromLocal(){
 
   // إن توفر الاتصال، تحقق في الخلفية من وجود تحديثات من جهاز آخر وادمجها، وزامن أي تعديلات معلّقة من هذا الجهاز
   if(SUPABASE_CONFIGURED && navigator.onLine !== false){
+    await retryPendingHardDeletes();
     syncAllPending();
-    Promise.all(ALL_SYNC_KEYS.map(k=>pullAndMergeIfNeeded(k))).then(results=>{
+    Promise.all(syncKeysExcludingPendingDeletes().map(k=>pullAndMergeIfNeeded(k))).then(results=>{
       if(results.some(Boolean)) reloadAllFromLocal();
     });
   }
@@ -2891,11 +2900,12 @@ async function reloadAllFromLocal(){
   // محاولة مزامنة دورية في الخلفية (تلتقط أي تعديل معلّق، وأي تحديث من جهاز آخر بالشبكة نفسها)
   setInterval(()=>{
     if(navigator.onLine === false) return;
+    retryPendingHardDeletes();
     syncAllPending();
   }, 40000);
   setInterval(()=>{
     if(navigator.onLine === false || document.hidden) return;
-    Promise.all(ALL_SYNC_KEYS.map(k=>pullAndMergeIfNeeded(k))).then(results=>{
+    Promise.all(syncKeysExcludingPendingDeletes().map(k=>pullAndMergeIfNeeded(k))).then(results=>{
       if(results.some(Boolean)) reloadAllFromLocal();
     });
   }, 180000);
