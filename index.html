@@ -351,6 +351,27 @@
     display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;
   }
 
+  /* ---------- SYNC STATUS BADGE ---------- */
+  #sync-badge{
+    position:fixed;top:14px;left:14px;z-index:300;
+    display:flex;align-items:center;gap:7px;
+    background:rgba(5,36,38,.92);color:#fff;
+    padding:8px 14px;border-radius:999px;
+    font-size:12.5px;font-weight:700;
+    box-shadow:0 6px 18px rgba(5,36,38,.3);
+    transition:background .25s ease;
+    cursor:default;
+    max-width:min(72vw,320px);
+  }
+  #sync-badge .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;background:var(--success);}
+  #sync-badge.pending .dot{background:#E8B93B;animation:pulseDot 1.4s infinite;}
+  #sync-badge.offline .dot{background:#8B8B8B;}
+  #sync-badge span.txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  @keyframes pulseDot{0%,100%{opacity:1;}50%{opacity:.35;}}
+  @media(max-width:560px){
+    #sync-badge{top:auto;bottom:86px;left:12px;right:12px;max-width:none;justify-content:center;}
+  }
+
   /* ---------- SALES / GRILL / STOCK ---------- */
   .stock-hint{
     font-size:12.5px;color:var(--sea-mid);font-weight:700;margin-top:-10px;margin-bottom:16px;
@@ -950,6 +971,7 @@
 </div>
 
 <div id="toast"><span class="tick">✓</span><span id="toast-msg"></span></div>
+<div id="sync-badge"><span class="dot"></span><span class="txt" id="sync-badge-text">جاري التحقق...</span></div>
 
 <script>
 /* ======================================================================
@@ -965,36 +987,188 @@ if(SUPABASE_CONFIGURED){
   supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 }
 
-/* شِيم يحاكي واجهة window.storage الأصلية (get/set) لكن يخزّن البيانات فعليًا
-   في جدول app_kv داخل Supabase — بهذا تبقى كل دوال loadDB/saveDB وغيرها
-   في الأسفل تعمل دون أي تعديل، وتصبح البيانات دائمة ومتاحة من أي جهاز */
+/* ======================================================================
+   طبقة العمل بدون انترنت (Offline-First)
+   ------------------------------------------------------------------------
+   الفكرة: كل حفظ يُكتب فورًا وبشكل متزامن تقريبًا في IndexedDB على نفس
+   الجهاز (يعمل بلا انترنت، ويصمد أمام إغلاق المتصفح بالغلط أو انقطاع
+   الكهرباء أو نفاد بطارية الجوال، لأن IndexedDB تخزين دائم على القرص
+   وليس في الذاكرة). بعدها، وفي الخلفية، تحاول المزامنة مع Supabase
+   تلقائيًا كلما توفر الاتصال، مع دمج ذكي للتغييرات بدل الكتابة فوق بيانات
+   جهاز آخر إن كان قد عدّل نفس الجدول أثناء انقطاعنا.
+   ====================================================================== */
+const LOCAL_DB_NAME = "fishAppOffline_v1";
+const LOCAL_STORE = "kv";
+function openLocalDB(){
+  return new Promise((resolve,reject)=>{
+    if(!('indexedDB' in window)){ reject(new Error("IndexedDB غير مدعوم في هذا المتصفح")); return; }
+    const req = indexedDB.open(LOCAL_DB_NAME, 1);
+    req.onupgradeneeded = ()=>{
+      const db = req.result;
+      if(!db.objectStoreNames.contains(LOCAL_STORE)) db.createObjectStore(LOCAL_STORE, {keyPath:"key"});
+    };
+    req.onsuccess = ()=> resolve(req.result);
+    req.onerror = ()=> reject(req.error);
+  });
+}
+let _localDBPromise = null;
+function getLocalDB(){ if(!_localDBPromise) _localDBPromise = openLocalDB(); return _localDBPromise; }
+async function localGet(key){
+  const db = await getLocalDB();
+  return new Promise((resolve,reject)=>{
+    const tx = db.transaction(LOCAL_STORE,"readonly");
+    const req = tx.objectStore(LOCAL_STORE).get(key);
+    req.onsuccess = ()=> resolve(req.result || null);
+    req.onerror = ()=> reject(req.error);
+  });
+}
+async function localSet(record){
+  const db = await getLocalDB();
+  return new Promise((resolve,reject)=>{
+    const tx = db.transaction(LOCAL_STORE,"readwrite");
+    tx.objectStore(LOCAL_STORE).put(record);
+    tx.oncomplete = ()=> resolve(true);
+    tx.onerror = ()=> reject(tx.error);
+  });
+}
+
+/* حالة المزامنة: أي مفاتيح لديها تعديلات محلية لم تصل للسحابة بعد */
+let PENDING_SYNC_KEYS = new Set();
+let hasUnsyncedChanges = false;
+let isSyncing = false;
+let syncDebounceTimer = null;
+
+function markUnsyncedUI(){
+  hasUnsyncedChanges = PENDING_SYNC_KEYS.size > 0;
+  updateSyncBadge();
+}
+
+function scheduleSync(){
+  clearTimeout(syncDebounceTimer);
+  syncDebounceTimer = setTimeout(()=>{ syncAllPending(); }, 700);
+}
+
+async function syncAllPending(){
+  if(isSyncing || !SUPABASE_CONFIGURED) return;
+  if(navigator.onLine === false) return;
+  isSyncing = true;
+  updateSyncBadge();
+  let anyFailed = false;
+  try{
+    for(const key of Array.from(PENDING_SYNC_KEYS)){
+      const ok = await syncOneKey(key);
+      if(ok) PENDING_SYNC_KEYS.delete(key); else anyFailed = true;
+    }
+  } finally{
+    isSyncing = false;
+    markUnsyncedUI();
+    if(anyFailed) setTimeout(syncAllPending, 15000);
+  }
+}
+
+/* يدفع مفتاحًا واحدًا للسحابة، مع دمج التغييرات إن كانت النسخة السحابية
+   قد تغيّرت من جهاز آخر أثناء انقطاعنا (بدل الكتابة فوقها بالكامل) */
+async function syncOneKey(key){
+  try{
+    const rec = await localGet(key);
+    if(!rec) return true;
+    const local = JSON.parse(rec.value);
+
+    const { data, error } = await supabaseClient
+      .from("app_kv").select("value, updated_at").eq("key", key).maybeSingle();
+    if(error) throw error;
+
+    let toPush = local;
+    if(data && (!rec.remoteUpdatedAt || data.updated_at !== rec.remoteUpdatedAt)){
+      const remote = JSON.parse(data.value);
+      toPush = mergeStores(key, local, remote);
+    }
+
+    const { data: upserted, error: upErr } = await supabaseClient
+      .from("app_kv")
+      .upsert({ key, value: JSON.stringify(toPush), updated_at: new Date().toISOString() }, { onConflict:"key" })
+      .select("updated_at").maybeSingle();
+    if(upErr) throw upErr;
+
+    await localSet({ key, value: JSON.stringify(toPush), dirty:false,
+      localUpdatedAt: Date.now(), remoteUpdatedAt: upserted ? upserted.updated_at : new Date().toISOString() });
+    applyMergedValue(key, toPush);
+    return true;
+  }catch(e){
+    console.warn("تعذّرت مزامنة", key, e);
+    return false;
+  }
+}
+
+/* عند الإقلاع (أو عند عودة الاتصال) نتحقق هل توجد نسخة سحابية أحدث ممّا لدينا
+   محليًا (من جهاز آخر) وندمجها بأمان بدل تجاهلها أو الكتابة فوقها */
+async function pullAndMergeIfNeeded(key){
+  if(!SUPABASE_CONFIGURED || navigator.onLine === false) return false;
+  try{
+    const localRec = await localGet(key);
+    const { data, error } = await supabaseClient
+      .from("app_kv").select("value, updated_at").eq("key", key).maybeSingle();
+    if(error || !data) return false;
+    if(localRec && !localRec.dirty && localRec.remoteUpdatedAt === data.updated_at) return false;
+
+    const remote = JSON.parse(data.value);
+    if(localRec && localRec.dirty){
+      const merged = mergeStores(key, JSON.parse(localRec.value), remote);
+      const { data: up } = await supabaseClient.from("app_kv")
+        .upsert({ key, value: JSON.stringify(merged), updated_at: new Date().toISOString() }, { onConflict:"key" })
+        .select("updated_at").maybeSingle();
+      await localSet({ key, value: JSON.stringify(merged), dirty:false,
+        localUpdatedAt: Date.now(), remoteUpdatedAt: up ? up.updated_at : new Date().toISOString() });
+      PENDING_SYNC_KEYS.delete(key);
+    } else {
+      await localSet({ key, value: JSON.stringify(remote), dirty:false,
+        localUpdatedAt: Date.now(), remoteUpdatedAt: data.updated_at });
+    }
+    return true;
+  }catch(e){ console.warn("تعذّر جلب تحديثات", key, e); return false; }
+}
+
+/* شِيم يحاكي واجهة window.storage الأصلية (get/set) لكن يقرأ ويكتب محليًا
+   في IndexedDB أولًا وفورًا (يعمل دومًا، بلا انترنت وبلا أي انتظار)، ثم
+   يزامن مع Supabase تلقائيًا في الخلفية — بهذا تبقى كل دوال loadDB/saveDB
+   وغيرها تعمل دون أي تعديل، وتصبح البيانات مضمونة الحفظ محليًا دومًا
+   ومزامنة سحابيًا كلما توفر الاتصال */
 window.storage = {
   async get(key, shared){
-    if(!SUPABASE_CONFIGURED){
-      console.warn("⚠️ لم يتم ربط قاعدة بيانات Supabase بعد — البيانات لن تُحفظ. راجع خطوات الإعداد.");
-      return null;
+    try{
+      const rec = await localGet(key);
+      if(rec) return { key, value: rec.value, shared: !!shared };
+    }catch(e){ console.warn("تعذّرت القراءة المحلية", e); }
+    if(SUPABASE_CONFIGURED && navigator.onLine !== false){
+      try{
+        const { data, error } = await supabaseClient
+          .from("app_kv").select("value, updated_at").eq("key", key).maybeSingle();
+        if(!error && data){
+          await localSet({ key, value:data.value, dirty:false, localUpdatedAt:Date.now(), remoteUpdatedAt:data.updated_at });
+          return { key, value:data.value, shared:!!shared };
+        }
+      }catch(e){ console.warn("تعذّرت القراءة من السحابة", e); }
     }
-    const { data, error } = await supabaseClient
-      .from("app_kv")
-      .select("value")
-      .eq("key", key)
-      .maybeSingle();
-    if(error){ console.error("Supabase get error:", error); throw error; }
-    if(!data) return null;
-    return { key, value: data.value, shared: !!shared };
+    return null;
   },
   async set(key, value, shared){
-    if(!SUPABASE_CONFIGURED){
-      console.warn("⚠️ لم يتم ربط قاعدة بيانات Supabase بعد — لن يتم حفظ التغييرات.");
-      return null;
-    }
-    const { error } = await supabaseClient
-      .from("app_kv")
-      .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: "key" });
-    if(error){ console.error("Supabase set error:", error); throw error; }
+    // يُخزَّن محليًا فورًا — هذا ما يحمي البيانات من إغلاق المتصفح بالغلط
+    // أو انقطاع الكهرباء أو نفاد البطارية، بغض النظر عن وجود انترنت
+    await localSet({ key, value, dirty:true, localUpdatedAt: Date.now() });
+    PENDING_SYNC_KEYS.add(key);
+    markUnsyncedUI();
+    scheduleSync();
     return { key, value, shared: !!shared };
   }
 };
+
+/* عندما يعود الاتصال بعد انقطاع، أو عند فشل الاتصال بقاعدة البيانات، لا نُفشل
+   الحفظ ولا نتراجع عن بيانات المستخدم — البيانات محفوظة محليًا بأمان دومًا */
+function showConnErrorToast(){
+  // لم تعد هناك حالة "فشل حفظ" حقيقية بفضل التخزين المحلي؛ هذه الدالة الآن
+  // تُستدعى فقط في حالات فشل استثنائية (مثل امتلاء مساحة التخزين على الجهاز)
+  showToast("⚠️ تعذّر حفظ التعديل على هذا الجهاز. تأكد من توفر مساحة تخزين وحاول مرة أخرى.", 4800);
+}
 
 /* ============ CONFIG ============ */
 const FISH_TYPES = ["دنيس","قاروص","بوري","جرع","سردين","لوكس","لوكس 111","طرخونة","باغة","صروص","سلطان","سويسي","مليطة","سلاطعين","جمبري","كلماري","مياس","سفرنه","بلميدا","بزرة","سكمبلة","صنف آخر"];
@@ -1004,7 +1178,9 @@ const SALES_STORAGE_KEY = "sales_archive_v1";
 const RESOLUTIONS_STORAGE_KEY = "inventory_resolutions_v1";
 const PAYMENTS_STORAGE_KEY = "payments_archive_v1";
 const DEBTS_STORAGE_KEY = "debts_archive_v1";
+const TOMBSTONES_STORAGE_KEY = "tombstones_v1"; // سجل العناصر المحذوفة، يمنع عودتها بالغلط بعد دمج بيانات جهازين
 const SHARED = true; // shared ledger so the whole team sees the same purchases
+const ALL_SYNC_KEYS = [STORAGE_KEY, SALES_STORAGE_KEY, RESOLUTIONS_STORAGE_KEY, PAYMENTS_STORAGE_KEY, DEBTS_STORAGE_KEY, TOMBSTONES_STORAGE_KEY];
 
 let DB = {}; // { "2026-08-20": { day:"الخميس", merchants:[{id,name,items:[{id,type,qty,price,amount}]}] } }
 let currentDetailDate = null;
@@ -1026,6 +1202,10 @@ let PAYMENTS_DB = {}; // { id: {id,date,customerName,itemType,qty,price,grillEna
 // صفحة الدين: المبالغ غير المسددة (دين كامل أو الجزء المتبقي من سداد جزئي)، قابلة للتسديد لاحقًا بشكل كامل أو على دفعات
 let DEBTS_DB = {}; // { id: {id,customerName,itemType,qty,price,grillEnabled,grillQty,grillPrice,itemAmount,debtKind:'debt'|'partial',remainingAmount,createdDate,lastUpdateDate,settled,history:[{date,amountPaid}]} }
 
+// سجل "شواهد" العناصر المحذوفة (تاجر/زبون/صنف) — يُستخدم فقط عند دمج نسخة هذا
+// الجهاز مع نسخة جهاز آخر بعد انقطاع، كي لا يعود عنصر حذفته بالغلط من جهاز آخر
+let TOMBSTONES_DB = { merchants:{}, customers:{}, items:{} };
+
 /* ============ حالة الاتصال: التقاط نسخة قبل التعديل، والتراجع عنها إن فشل الحفظ في قاعدة البيانات ============ */
 function snapshotGlobals(){
   return {
@@ -1033,7 +1213,8 @@ function snapshotGlobals(){
     SALES_DB: JSON.stringify(SALES_DB),
     RESOLUTIONS: JSON.stringify(RESOLUTIONS),
     PAYMENTS_DB: JSON.stringify(PAYMENTS_DB),
-    DEBTS_DB: JSON.stringify(DEBTS_DB)
+    DEBTS_DB: JSON.stringify(DEBTS_DB),
+    TOMBSTONES_DB: JSON.stringify(TOMBSTONES_DB)
   };
 }
 function restoreGlobals(snap){
@@ -1042,15 +1223,87 @@ function restoreGlobals(snap){
   RESOLUTIONS = JSON.parse(snap.RESOLUTIONS);
   PAYMENTS_DB = JSON.parse(snap.PAYMENTS_DB);
   DEBTS_DB = JSON.parse(snap.DEBTS_DB);
+  if(snap.TOMBSTONES_DB) TOMBSTONES_DB = JSON.parse(snap.TOMBSTONES_DB);
 }
-function showConnErrorToast(){
-  if(navigator.onLine === false){
-    showToast("⚠️ لا يوجد اتصال بالإنترنت. لم يتم حفظ البيانات — تأكد من اتصالك وحاول مرة أخرى.", 4800);
-  } else {
-    showToast("⚠️ تعذر الوصول لقاعدة البيانات. لم يتم حفظ البيانات — تأكد من اتصالك وحاول مرة أخرى.", 4800);
-  }
+function applyMergedValue(key, value){
+  // تُستدعى بعد دمج ناتج عن مزامنة في الخلفية، لتحديث المتغيرات في الذاكرة والواجهة
+  if(key===STORAGE_KEY) DB = value;
+  else if(key===SALES_STORAGE_KEY) SALES_DB = value;
+  else if(key===RESOLUTIONS_STORAGE_KEY) RESOLUTIONS = value;
+  else if(key===PAYMENTS_STORAGE_KEY) PAYMENTS_DB = value;
+  else if(key===DEBTS_STORAGE_KEY) DEBTS_DB = value;
+  else if(key===TOMBSTONES_STORAGE_KEY) TOMBSTONES_DB = value;
+  else return;
+  refreshAllViews();
 }
 
+/* ============ دمج البيانات عند تعارض نسختين (هذا الجهاز وجهاز آخر) ============ */
+function unionMergeById(localArr, remoteArr, tombstoneMap){
+  const map = new Map();
+  (remoteArr||[]).forEach(it=> map.set(it.id, it));
+  (localArr||[]).forEach(it=> map.set(it.id, it)); // نسخة هذا الجهاز تُفضَّل عند التعارض على نفس المعرف
+  const result = [];
+  map.forEach((it, id)=>{
+    if(tombstoneMap && tombstoneMap[id]) return; // عنصر محذوف فعليًا: لا يُعاد
+    result.push(it);
+  });
+  return result;
+}
+function mergeStores(key, local, remote){
+  try{
+    local = local || {}; remote = remote || {};
+    if(key===STORAGE_KEY || key===SALES_STORAGE_KEY){
+      const listField = key===STORAGE_KEY ? "merchants" : "customers";
+      const ownerTomb = key===STORAGE_KEY ? (TOMBSTONES_DB.merchants||{}) : (TOMBSTONES_DB.customers||{});
+      const itemTomb = TOMBSTONES_DB.items||{};
+      const dates = new Set([...Object.keys(local), ...Object.keys(remote)]);
+      const merged = {};
+      dates.forEach(date=>{
+        const l = local[date], r = remote[date];
+        if(!l){ merged[date] = r; return; }
+        if(!r){ merged[date] = l; return; }
+        const owners = unionMergeById(l[listField], r[listField], ownerTomb).map(owner=>{
+          const lOwner = (l[listField]||[]).find(o=>o.id===owner.id);
+          const rOwner = (r[listField]||[]).find(o=>o.id===owner.id);
+          const items = unionMergeById(lOwner?lOwner.items:null, rOwner?rOwner.items:null, itemTomb);
+          return {...owner, items};
+        });
+        merged[date] = {...r, ...l, [listField]: owners};
+      });
+      return merged;
+    }
+    if(key===RESOLUTIONS_STORAGE_KEY){
+      const dates = new Set([...Object.keys(local), ...Object.keys(remote)]);
+      const merged = {};
+      dates.forEach(date=> merged[date] = {...(remote[date]||{}), ...(local[date]||{})});
+      return merged;
+    }
+    if(key===PAYMENTS_STORAGE_KEY || key===DEBTS_STORAGE_KEY){
+      // قواميس مفتاحها معرف فريد: اتحاد الاثنين، مع أولوية لنسخة هذا الجهاز عند تطابق نفس المعرف
+      return {...remote, ...local};
+    }
+    if(key===TOMBSTONES_STORAGE_KEY){
+      return {
+        merchants: {...(remote.merchants||{}), ...(local.merchants||{})},
+        customers: {...(remote.customers||{}), ...(local.customers||{})},
+        items: {...(remote.items||{}), ...(local.items||{})}
+      };
+    }
+  }catch(e){ console.warn("فشل الدمج، سيتم الاحتفاظ بنسخة هذا الجهاز كما هي", e); }
+  return local; // أمان: لا تُفقد تعديلات هذا الجهاز أبدًا حتى لو تعذّر الدمج
+}
+function refreshAllViews(){
+  try{ renderTodayMerchantItems(document.getElementById("in-merchant")?.value||""); }catch(e){}
+  try{ renderTodayCustomerItems(document.getElementById("in-customer")?.value||""); }catch(e){}
+  try{ renderArchiveList(); }catch(e){}
+  try{ renderSalesArchiveList(); }catch(e){}
+  try{ renderInventoryList(); }catch(e){}
+  try{ renderPaymentsPage(); }catch(e){}
+  try{ renderDebtsPage(); }catch(e){}
+  try{ if(currentDetailDate) renderDetailTable(); }catch(e){}
+  try{ if(currentSalesDetailDate) renderSalesDetailTable(); }catch(e){}
+  try{ if(currentInventoryDetailDate) renderInventoryDetailTable(); }catch(e){}
+}
 /* ============ INIT ============ */
 function populateTypeSelect(sel, withPlaceholder){
   sel.innerHTML = "";
@@ -1257,6 +1510,21 @@ async function loadDebtsDB(){
 async function saveDebtsDB(){
   try{
     const res = await window.storage.set(DEBTS_STORAGE_KEY, JSON.stringify(DEBTS_DB), SHARED);
+    return !!res;
+  }catch(e){ console.error("storage error", e); return false; }
+}
+async function loadTombstonesDB(){
+  try{
+    const res = await window.storage.get(TOMBSTONES_STORAGE_KEY, SHARED);
+    if(res && res.value){ TOMBSTONES_DB = JSON.parse(res.value); }
+  }catch(e){ /* تبقى TOMBSTONES_DB بالقيمة الافتراضية الفارغة */ }
+  if(!TOMBSTONES_DB.merchants) TOMBSTONES_DB.merchants = {};
+  if(!TOMBSTONES_DB.customers) TOMBSTONES_DB.customers = {};
+  if(!TOMBSTONES_DB.items) TOMBSTONES_DB.items = {};
+}
+async function saveTombstonesDB(){
+  try{
+    const res = await window.storage.set(TOMBSTONES_STORAGE_KEY, JSON.stringify(TOMBSTONES_DB), SHARED);
     return !!res;
   }catch(e){ console.error("storage error", e); return false; }
 }
@@ -1951,10 +2219,13 @@ async function confirmDelete(){
     const c = dayData.customers.find(cc=>cc.id===ownerId);
     if(c){
       c.items = c.items.filter(it=>it.id!==itemId);
+      TOMBSTONES_DB.items[itemId] = Date.now();
       if(c.items.length===0){
         dayData.customers = dayData.customers.filter(cc=>cc.id!==ownerId);
+        TOMBSTONES_DB.customers[ownerId] = Date.now();
       }
     }
+    await saveTombstonesDB();
     const ok = await saveSalesDB();
     if(!ok){
       restoreGlobals(_snap);
@@ -1971,10 +2242,13 @@ async function confirmDelete(){
   const m = dayData.merchants.find(mm=>mm.id===ownerId);
   if(m){
     m.items = m.items.filter(it=>it.id!==itemId);
+    TOMBSTONES_DB.items[itemId] = Date.now();
     if(m.items.length===0){
       dayData.merchants = dayData.merchants.filter(mm=>mm.id!==ownerId);
+      TOMBSTONES_DB.merchants[ownerId] = Date.now();
     }
   }
+  await saveTombstonesDB();
   const ok = await saveDB();
   if(!ok){
     restoreGlobals(_snap);
@@ -2328,18 +2602,99 @@ function showToast(msg, duration){
   toastTimer = setTimeout(()=>t.classList.remove("show"), duration || 3200);
 }
 
-/* ============ BOOT ============ */
-(async function init(){
-  populateTypeSelect(document.getElementById("in-type"), true);
-  spawnBubbles();
+/* ============ SYNC BADGE UI ============ */
+function updateSyncBadge(){
+  const el = document.getElementById("sync-badge");
+  const txt = document.getElementById("sync-badge-text");
+  if(!el || !txt) return;
   if(!SUPABASE_CONFIGURED){
-    showToast("⚠️ لم يتم ربط قاعدة البيانات بعد — البيانات لن تُحفظ. راجع تعليمات الإعداد.");
+    el.className = "offline";
+    txt.textContent = "⚠️ لم يتم ربط قاعدة البيانات السحابية";
+    return;
   }
+  if(navigator.onLine === false){
+    el.className = "offline";
+    txt.textContent = "📴 غير متصل — البيانات محفوظة بأمان على جهازك";
+    return;
+  }
+  if(PENDING_SYNC_KEYS.size > 0 || isSyncing){
+    el.className = "pending";
+    txt.textContent = isSyncing ? "🔄 جاري المزامنة..." : "🟡 بيانات بانتظار المزامنة";
+    return;
+  }
+  el.className = "";
+  txt.textContent = "🟢 كل البيانات متزامنة";
+}
+
+/* ============ حماية من فقدان البيانات عند إغلاق الصفحة ============ */
+window.addEventListener("beforeunload", function(e){
+  if(hasUnsyncedChanges){
+    e.preventDefault();
+    e.returnValue = "لا تزال هناك بيانات لم تُزامَن بعد مع قاعدة البيانات السحابية. لا تغلق الصفحة الآن.";
+    return e.returnValue;
+  }
+});
+
+/* عودة/انقطاع الاتصال */
+window.addEventListener("online", ()=>{
+  updateSyncBadge();
+  showToast("✅ عاد الاتصال بالإنترنت — جاري مزامنة البيانات تلقائيًا...", 3500);
+  syncAllPending();
+  Promise.all(ALL_SYNC_KEYS.map(k=>pullAndMergeIfNeeded(k))).then(results=>{
+    if(results.some(Boolean)) reloadAllFromLocal();
+  });
+});
+window.addEventListener("offline", ()=>{
+  updateSyncBadge();
+  showToast("📴 لا يوجد اتصال بالإنترنت. لا تقلق: يستمر التطبيق بالعمل بشكل طبيعي، وكل ما تُدخله محفوظ فورًا على جهازك، وستتم مزامنته تلقائيًا فور عودة الاتصال.", 5500);
+});
+
+async function reloadAllFromLocal(){
   await loadDB();
   await loadSalesDB();
   await loadResolutions();
   await loadPaymentsDB();
   await loadDebtsDB();
+  await loadTombstonesDB();
+  refreshAllViews();
+}
+
+/* ============ BOOT ============ */
+(async function init(){
+  populateTypeSelect(document.getElementById("in-type"), true);
+  spawnBubbles();
+  updateSyncBadge();
+  if(!SUPABASE_CONFIGURED){
+    showToast("⚠️ لم يتم ربط قاعدة البيانات بعد — البيانات ستُحفظ على هذا الجهاز فقط. راجع تعليمات الإعداد.");
+  }
+  // تحميل فوري من التخزين المحلي على الجهاز (يعمل حتى بدون انترنت، وبدون أي انتظار للشبكة)
+  await loadDB();
+  await loadSalesDB();
+  await loadResolutions();
+  await loadPaymentsDB();
+  await loadDebtsDB();
+  await loadTombstonesDB();
+  updateSyncBadge();
+
+  // إن توفر الاتصال، تحقق في الخلفية من وجود تحديثات من جهاز آخر وادمجها، وزامن أي تعديلات معلّقة من هذا الجهاز
+  if(SUPABASE_CONFIGURED && navigator.onLine !== false){
+    syncAllPending();
+    Promise.all(ALL_SYNC_KEYS.map(k=>pullAndMergeIfNeeded(k))).then(results=>{
+      if(results.some(Boolean)) reloadAllFromLocal();
+    });
+  }
+
+  // محاولة مزامنة دورية في الخلفية (تلتقط أي تعديل معلّق، وأي تحديث من جهاز آخر بالشبكة نفسها)
+  setInterval(()=>{
+    if(navigator.onLine === false) return;
+    syncAllPending();
+  }, 40000);
+  setInterval(()=>{
+    if(navigator.onLine === false || document.hidden) return;
+    Promise.all(ALL_SYNC_KEYS.map(k=>pullAndMergeIfNeeded(k))).then(results=>{
+      if(results.some(Boolean)) reloadAllFromLocal();
+    });
+  }, 180000);
 })();
 </script>
 </body>
