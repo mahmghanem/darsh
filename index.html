@@ -1204,7 +1204,7 @@ let DEBTS_DB = {}; // { id: {id,customerName,itemType,qty,price,grillEnabled,gri
 
 // سجل "شواهد" العناصر المحذوفة (تاجر/زبون/صنف) — يُستخدم فقط عند دمج نسخة هذا
 // الجهاز مع نسخة جهاز آخر بعد انقطاع، كي لا يعود عنصر حذفته بالغلط من جهاز آخر
-let TOMBSTONES_DB = { merchants:{}, customers:{}, items:{} };
+let TOMBSTONES_DB = { merchants:{}, customers:{}, items:{}, debts:{}, payments:{} };
 
 /* ============ حالة الاتصال: التقاط نسخة قبل التعديل، والتراجع عنها إن فشل الحفظ في قاعدة البيانات ============ */
 function snapshotGlobals(){
@@ -1278,15 +1278,25 @@ function mergeStores(key, local, remote){
       dates.forEach(date=> merged[date] = {...(remote[date]||{}), ...(local[date]||{})});
       return merged;
     }
-    if(key===PAYMENTS_STORAGE_KEY || key===DEBTS_STORAGE_KEY){
-      // قواميس مفتاحها معرف فريد: اتحاد الاثنين، مع أولوية لنسخة هذا الجهاز عند تطابق نفس المعرف
-      return {...remote, ...local};
+    if(key===PAYMENTS_STORAGE_KEY){
+      const tomb = TOMBSTONES_DB.payments||{};
+      const merged = {...remote, ...local};
+      Object.keys(merged).forEach(id=>{ if(tomb[id]) delete merged[id]; });
+      return merged;
+    }
+    if(key===DEBTS_STORAGE_KEY){
+      const tomb = TOMBSTONES_DB.debts||{};
+      const merged = {...remote, ...local};
+      Object.keys(merged).forEach(id=>{ if(tomb[id]) delete merged[id]; });
+      return merged;
     }
     if(key===TOMBSTONES_STORAGE_KEY){
       return {
         merchants: {...(remote.merchants||{}), ...(local.merchants||{})},
         customers: {...(remote.customers||{}), ...(local.customers||{})},
-        items: {...(remote.items||{}), ...(local.items||{})}
+        items: {...(remote.items||{}), ...(local.items||{})},
+        debts: {...(remote.debts||{}), ...(local.debts||{})},
+        payments: {...(remote.payments||{}), ...(local.payments||{})}
       };
     }
   }catch(e){ console.warn("فشل الدمج، سيتم الاحتفاظ بنسخة هذا الجهاز كما هي", e); }
@@ -1521,6 +1531,8 @@ async function loadTombstonesDB(){
   if(!TOMBSTONES_DB.merchants) TOMBSTONES_DB.merchants = {};
   if(!TOMBSTONES_DB.customers) TOMBSTONES_DB.customers = {};
   if(!TOMBSTONES_DB.items) TOMBSTONES_DB.items = {};
+  if(!TOMBSTONES_DB.debts) TOMBSTONES_DB.debts = {};
+  if(!TOMBSTONES_DB.payments) TOMBSTONES_DB.payments = {};
 }
 async function saveTombstonesDB(){
   try{
@@ -2225,15 +2237,37 @@ async function confirmDelete(){
         TOMBSTONES_DB.customers[ownerId] = Date.now();
       }
     }
+    // احذف أيضًا أي سجل دين أو سداد نشأ عن هذا الصنف تحديدًا، حتى لا تبقى
+    // في صفحتي السداد والدين بيانات عن عملية بيع لم تعد موجودة
+    let dayRemoved = false;
+    Object.keys(DEBTS_DB).forEach(id=>{
+      if(DEBTS_DB[id].sourceItemId===itemId){ delete DEBTS_DB[id]; TOMBSTONES_DB.debts[id]=Date.now(); }
+    });
+    Object.keys(PAYMENTS_DB).forEach(id=>{
+      if(PAYMENTS_DB[id].sourceItemId===itemId){ delete PAYMENTS_DB[id]; TOMBSTONES_DB.payments[id]=Date.now(); }
+    });
+    if(dayData.customers.length===0){
+      delete SALES_DB[date];
+      dayRemoved = true;
+    }
     await saveTombstonesDB();
-    const ok = await saveSalesDB();
+    let ok = await saveSalesDB();
+    if(ok) ok = await saveDebtsDB();
+    if(ok) ok = await savePaymentsDB();
     if(!ok){
       restoreGlobals(_snap);
       showConnErrorToast();
       return;
     }
     closeConfirm();
-    renderSalesDetailTable();
+    renderDebtsPage();
+    renderPaymentsPage();
+    if(dayRemoved){
+      renderSalesArchiveList();
+      goTo("sales-archive");
+    } else {
+      renderSalesDetailTable();
+    }
     showToast("تم حذف الصنف بنجاح");
     return;
   }
@@ -2248,6 +2282,11 @@ async function confirmDelete(){
       TOMBSTONES_DB.merchants[ownerId] = Date.now();
     }
   }
+  let purchaseDayRemoved = false;
+  if(dayData.merchants.length===0){
+    delete DB[date];
+    purchaseDayRemoved = true;
+  }
   await saveTombstonesDB();
   const ok = await saveDB();
   if(!ok){
@@ -2256,7 +2295,12 @@ async function confirmDelete(){
     return;
   }
   closeConfirm();
-  renderDetailTable();
+  if(purchaseDayRemoved){
+    renderArchiveList();
+    goTo("archive");
+  } else {
+    renderDetailTable();
+  }
   showToast("تم حذف الصنف بنجاح");
 }
 
