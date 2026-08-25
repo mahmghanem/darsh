@@ -1077,23 +1077,39 @@ function scheduleSync(){
   syncDebounceTimer = setTimeout(()=>{ syncAllPending(); }, 700);
 }
 
-async function syncAllPending(){
-  if(isSyncing || !SUPABASE_CONFIGURED) return;
-  if(navigator.onLine === false) return;
-  isSyncing = true;
-  updateSyncBadge();
-  let anyFailed = false;
-  try{
-    for(const key of Array.from(PENDING_SYNC_KEYS)){
-      const ok = await syncOneKey(key);
-      if(ok) PENDING_SYNC_KEYS.delete(key); else anyFailed = true;
-    }
-  } finally{
-    isSyncing = false;
-    markUnsyncedUI();
-    if(anyFailed) setTimeout(syncAllPending, 15000);
-  }
+/* قفل تسلسلي: يمنع تداخل "دفع التعديلات للسحابة" مع "جلب تحديثات من السحابة"
+   على نفس المفتاح في اللحظة نفسها — كان هذا التداخل قادرًا على إضاعة إدخالات
+   حديثة في حالات نادرة عند عودة الاتصال */
+let SYNC_CHAIN = Promise.resolve();
+function runExclusiveSync(fn){
+  const p = SYNC_CHAIN.then(fn, fn);
+  SYNC_CHAIN = p.catch(()=>{});
+  return p;
 }
+
+async function syncAllPending(){
+  if(!SUPABASE_CONFIGURED || navigator.onLine === false) return;
+  return runExclusiveSync(async ()=>{
+    if(isSyncing) return;
+    isSyncing = true;
+    updateSyncBadge();
+    let anyFailed = false;
+    try{
+      for(const key of Array.from(PENDING_SYNC_KEYS)){
+        const ok = await syncOneKey(key);
+        if(ok && !PENDING_SYNC_KEYS_REDIRTIED.has(key)) PENDING_SYNC_KEYS.delete(key);
+        PENDING_SYNC_KEYS_REDIRTIED.delete(key);
+        if(!ok) anyFailed = true;
+      }
+    } finally{
+      isSyncing = false;
+      markUnsyncedUI();
+      if(anyFailed) setTimeout(syncAllPending, 15000);
+    }
+  });
+}
+/* مفاتيح عاد المستخدم وعدّلها أثناء وجود دفعة مزامنة جارية لها */
+const PENDING_SYNC_KEYS_REDIRTIED = new Set();
 
 /* يدفع مفتاحًا واحدًا للسحابة، مع دمج التغييرات إن كانت النسخة السحابية
    قد تغيّرت من جهاز آخر أثناء انقطاعنا (بدل الكتابة فوقها بالكامل) */
@@ -1118,9 +1134,20 @@ async function syncOneKey(key){
       .upsert({ key, value: JSON.stringify(toPush), updated_at: new Date().toISOString() }, { onConflict:"key" })
       .select("updated_at").maybeSingle();
     if(upErr) throw upErr;
+    const remoteStamp = upserted ? upserted.updated_at : new Date().toISOString();
+
+    // هل أضاف المستخدم بيانات جديدة أثناء انشغالنا بالدفع للشبكة؟
+    const fresh = await localGet(key);
+    if(fresh && fresh.dirty && fresh.localUpdatedAt > rec.localUpdatedAt){
+      // نُبقي قيمته الأحدث كما هي (متسخة) لتُدفع في الجولة التالية،
+      // ونحدّث فقط طابع السحابة — ولا نلمس الواجهة حتى لا يختفي إدخاله
+      await localSet({ ...fresh, remoteUpdatedAt: remoteStamp });
+      PENDING_SYNC_KEYS_REDIRTIED.add(key);
+      return true;
+    }
 
     await localSet({ key, value: JSON.stringify(toPush), dirty:false,
-      localUpdatedAt: Date.now(), remoteUpdatedAt: upserted ? upserted.updated_at : new Date().toISOString() });
+      localUpdatedAt: Date.now(), remoteUpdatedAt: remoteStamp });
     applyMergedValue(key, toPush);
     return true;
   }catch(e){
@@ -1134,27 +1161,69 @@ async function syncOneKey(key){
 async function pullAndMergeIfNeeded(key){
   if(!SUPABASE_CONFIGURED || navigator.onLine === false) return false;
   try{
-    const localRec = await localGet(key);
     const { data, error } = await supabaseClient
       .from("app_kv").select("value, updated_at").eq("key", key).maybeSingle();
     if(error || !data) return false;
-    if(localRec && !localRec.dirty && localRec.remoteUpdatedAt === data.updated_at) return false;
+
+    /* مهم: نقرأ الحالة المحلية بعد اكتمال جلب الشبكة لا قبله — القراءة المبكرة
+       كانت تسمح بأن يُحفَظ إدخال جديد أثناء انتظار الشبكة ثم تُكتَب النسخة
+       السحابية القديمة فوقه فيختفي. كما نعامل أي مفتاح بانتظار المزامنة
+       كمُعدَّل محليًا حتى لو لم يُكتب علم الاتساخ بعد */
+    const localRec = await localGet(key);
+    const isDirty = (localRec && localRec.dirty) || PENDING_SYNC_KEYS.has(key);
+    if(localRec && !isDirty && localRec.remoteUpdatedAt === data.updated_at) return false;
 
     const remote = JSON.parse(data.value);
-    if(localRec && localRec.dirty){
+    if(localRec && isDirty){
       const merged = mergeStores(key, JSON.parse(localRec.value), remote);
       const { data: up } = await supabaseClient.from("app_kv")
         .upsert({ key, value: JSON.stringify(merged), updated_at: new Date().toISOString() }, { onConflict:"key" })
         .select("updated_at").maybeSingle();
+      const remoteStamp = up ? up.updated_at : new Date().toISOString();
+      // هل تغيّرت النسخة المحلية مرة أخرى أثناء الدفع؟ نُبقيها متسخة للجولة القادمة
+      const fresh = await localGet(key);
+      if(fresh && fresh.dirty && fresh.localUpdatedAt > localRec.localUpdatedAt){
+        await localSet({ ...fresh, remoteUpdatedAt: remoteStamp });
+        return true;
+      }
       await localSet({ key, value: JSON.stringify(merged), dirty:false,
-        localUpdatedAt: Date.now(), remoteUpdatedAt: up ? up.updated_at : new Date().toISOString() });
+        localUpdatedAt: Date.now(), remoteUpdatedAt: remoteStamp });
       PENDING_SYNC_KEYS.delete(key);
+      markUnsyncedUI();
     } else {
-      await localSet({ key, value: JSON.stringify(remote), dirty:false,
-        localUpdatedAt: Date.now(), remoteUpdatedAt: data.updated_at });
+      // فحص أخير قبل الكتابة فوق النسخة المحلية: إن ظهر إدخال جديد الآن ندمجه بدل مسحه
+      const fresh = await localGet(key);
+      if((fresh && fresh.dirty) || PENDING_SYNC_KEYS.has(key)){
+        const merged = mergeStores(key, JSON.parse((fresh||localRec).value), remote);
+        await localSet({ key, value: JSON.stringify(merged), dirty:true,
+          localUpdatedAt: Date.now(), remoteUpdatedAt: data.updated_at });
+        scheduleSync();
+      } else {
+        await localSet({ key, value: JSON.stringify(remote), dirty:false,
+          localUpdatedAt: Date.now(), remoteUpdatedAt: data.updated_at });
+      }
     }
     return true;
   }catch(e){ console.warn("تعذّر جلب تحديثات", key, e); return false; }
+}
+
+/* جلب موحَّد ومنظَّم: شواهد الحذف أولًا (لأن قرارات الدمج تعتمد عليها)،
+   ثم بقية الجداول واحدًا واحدًا داخل القفل التسلسلي، ثم تحديث الواجهة */
+async function pullAllAndRefresh(){
+  if(!SUPABASE_CONFIGURED || navigator.onLine === false) return;
+  return runExclusiveSync(async ()=>{
+    let any = false;
+    try{
+      const tombChanged = await pullAndMergeIfNeeded(TOMBSTONES_STORAGE_KEY);
+      if(tombChanged){ any = true; await loadTombstonesDB(); }
+      for(const k of ALL_SYNC_KEYS){
+        if(k === TOMBSTONES_STORAGE_KEY) continue;
+        const changed = await pullAndMergeIfNeeded(k);
+        any = any || changed;
+      }
+    }catch(e){ console.warn("تعذّر إتمام الجلب الشامل", e); }
+    if(any) await reloadAllFromLocal();
+  });
 }
 
 /* شِيم يحاكي واجهة window.storage الأصلية (get/set) لكن يقرأ ويكتب محليًا
@@ -1183,7 +1252,11 @@ window.storage = {
   async set(key, value, shared){
     // يُخزَّن محليًا فورًا — هذا ما يحمي البيانات من إغلاق المتصفح بالغلط
     // أو انقطاع الكهرباء أو نفاد البطارية، بغض النظر عن وجود انترنت
-    await localSet({ key, value, dirty:true, localUpdatedAt: Date.now() });
+    // (نحافظ على طابع آخر مزامنة سحابية إن وُجد حتى يبقى الدمج لاحقًا دقيقًا)
+    let _prev = null;
+    try{ _prev = await localGet(key); }catch(e){}
+    await localSet({ key, value, dirty:true, localUpdatedAt: Date.now(),
+      remoteUpdatedAt: _prev ? _prev.remoteUpdatedAt : undefined });
     PENDING_SYNC_KEYS.add(key);
     markUnsyncedUI();
     scheduleSync();
@@ -1292,8 +1365,15 @@ function mergeStores(key, local, remote){
       const dates = new Set([...Object.keys(local), ...Object.keys(remote)]);
       const merged = {};
       dates.forEach(date=>{
-        if(dateTomb[date]) return; // اليوم حُذف بالكامل عبر "إعادة تعيين الأرشيف": لا يُعاد مهما كان في النسخة الأخرى
         const l = local[date], r = remote[date];
+        /* شاهد حذف التاريخ (من "إعادة تعيين الأرشيف") يمسح فقط الأيام الأقدم منه.
+           يومٌ أُنشئ بعد إعادة التعيين (createdAt أحدث من الشاهد) هو بيانات جديدة
+           شرعية ويجب أن تبقى — هذا يمنع اختفاء مدخلات اليوم بعد عودة الانترنت */
+        const tombTime = dateTomb[date];
+        if(tombTime){
+          const dayCreated = Math.max((l && l.createdAt)||0, (r && r.createdAt)||0);
+          if(dayCreated <= tombTime) return; // اليوم أقدم من إعادة التعيين: يبقى محذوفًا
+        }
         if(!l){ merged[date] = r; return; }
         if(!r){ merged[date] = l; return; }
         const owners = unionMergeById(l[listField], r[listField], ownerTomb).map(owner=>{
@@ -1303,6 +1383,8 @@ function mergeStores(key, local, remote){
           return {...owner, items};
         });
         merged[date] = {...r, ...l, [listField]: owners};
+        const cAt = Math.max((l && l.createdAt)||0, (r && r.createdAt)||0);
+        if(cAt) merged[date].createdAt = cAt; // نحفظ الأحدث حتى تبقى الحماية بعد الدمج
       });
       return merged;
     }
@@ -1312,7 +1394,13 @@ function mergeStores(key, local, remote){
       const merged = {};
       dates.forEach(date=>{
         const combined = {...(remote[date]||{}), ...(local[date]||{})};
-        Object.keys(combined).forEach(type=>{ if(resTomb[date+"|"+type]) delete combined[type]; });
+        Object.keys(combined).forEach(type=>{
+          const tt = resTomb[date+"|"+type];
+          if(!tt) return;
+          const rec = combined[type];
+          // قرار جرد جديد (بعد التفريغ) يبقى؛ القديم فقط هو المحذوف
+          if(!rec || !rec.resolvedAt || rec.resolvedAt <= tt) delete combined[type];
+        });
         if(Object.keys(combined).length) merged[date] = combined;
       });
       return merged;
@@ -1665,7 +1753,17 @@ async function addPurchase(){
 
   const _snap = snapshotGlobals();
   const key = todayKey();
-  if(!DB[key]){ DB[key] = {day: dayNameOf(key), merchants: []}; }
+  if(!DB[key]){
+    DB[key] = {day: dayNameOf(key), merchants: [], createdAt: Date.now()};
+    // إن كان هذا التاريخ عليه شاهد حذف قديم من "إعادة تعيين الأرشيف" فهذا يومٌ
+    // جديد أُنشئ بعده — ننظّف الشاهد محليًا حتى لا يلتبس الدمج مستقبلًا
+    if(TOMBSTONES_DB.datesPurchases && TOMBSTONES_DB.datesPurchases[key]){
+      delete TOMBSTONES_DB.datesPurchases[key];
+      saveTombstonesDB();
+    }
+  }
+  // أيام قديمة أُنشئت قبل هذا الإصلاح بلا ختم زمني: نختمها الآن لتصبح محمية
+  if(!DB[key].createdAt) DB[key].createdAt = Date.now();
   // نفس التاجر (بالاسم) يُلحق به الصنف الجديد بدل إنشاء تاجر مكرر
   const m = getOrCreateMerchant(DB[key], merchant);
   m.items.push({id: genId(), type, qty, price, amount});
@@ -1825,7 +1923,14 @@ async function addSale(){
 
   const _snap = snapshotGlobals();
   const key = todayKey();
-  if(!SALES_DB[key]){ SALES_DB[key] = {day: dayNameOf(key), customers: []}; }
+  if(!SALES_DB[key]){
+    SALES_DB[key] = {day: dayNameOf(key), customers: [], createdAt: Date.now()};
+    if(TOMBSTONES_DB.datesSales && TOMBSTONES_DB.datesSales[key]){
+      delete TOMBSTONES_DB.datesSales[key];
+      saveTombstonesDB();
+    }
+  }
+  if(!SALES_DB[key].createdAt) SALES_DB[key].createdAt = Date.now();
   const c = getOrCreateCustomer(SALES_DB[key], customer);
   const itemId = genId();
   const debtAmount = paymentType==="debt" ? amount
@@ -2784,6 +2889,10 @@ async function resolveInventory(date, type, action){
   const _snap = snapshotGlobals();
   if(!RESOLUTIONS[date]) RESOLUTIONS[date] = {};
   RESOLUTIONS[date][type] = {status: action, remaining, resolvedAt: Date.now()};
+  if(TOMBSTONES_DB.resolutions && TOMBSTONES_DB.resolutions[date+"|"+type]){
+    delete TOMBSTONES_DB.resolutions[date+"|"+type];
+    saveTombstonesDB();
+  }
   const ok = await saveResolutions();
   if(!ok){
     restoreGlobals(_snap);
@@ -2844,10 +2953,9 @@ window.addEventListener("beforeunload", function(e){
 window.addEventListener("online", ()=>{
   updateSyncBadge();
   showToast("✅ عاد الاتصال بالإنترنت — جاري مزامنة البيانات تلقائيًا...", 3500);
+  // داخل القفل التسلسلي: تُدفع تعديلاتنا أولًا ثم تُجلب تحديثات الأجهزة الأخرى — بلا تداخل
   syncAllPending();
-  Promise.all(ALL_SYNC_KEYS.map(k=>pullAndMergeIfNeeded(k))).then(results=>{
-    if(results.some(Boolean)) reloadAllFromLocal();
-  });
+  pullAllAndRefresh();
 });
 window.addEventListener("offline", ()=>{
   updateSyncBadge();
@@ -2879,14 +2987,22 @@ async function reloadAllFromLocal(){
   await loadPaymentsDB();
   await loadDebtsDB();
   await loadTombstonesDB();
+
+  // استرجاع قائمة "بانتظار المزامنة" من القرص: لو أُغلق المتصفح أثناء انقطاع
+  // الانترنت وبقيت تعديلات غير مدفوعة، نلتقطها هنا ونضمن دفعها فور توفر الاتصال
+  for(const k of ALL_SYNC_KEYS){
+    try{
+      const rec = await localGet(k);
+      if(rec && rec.dirty) PENDING_SYNC_KEYS.add(k);
+    }catch(e){}
+  }
+  markUnsyncedUI();
   updateSyncBadge();
 
   // إن توفر الاتصال، تحقق في الخلفية من وجود تحديثات من جهاز آخر وادمجها، وزامن أي تعديلات معلّقة من هذا الجهاز
   if(SUPABASE_CONFIGURED && navigator.onLine !== false){
     syncAllPending();
-    Promise.all(ALL_SYNC_KEYS.map(k=>pullAndMergeIfNeeded(k))).then(results=>{
-      if(results.some(Boolean)) reloadAllFromLocal();
-    });
+    pullAllAndRefresh();
   }
 
   // محاولة مزامنة دورية في الخلفية (تلتقط أي تعديل معلّق، وأي تحديث من جهاز آخر بالشبكة نفسها)
@@ -2896,9 +3012,7 @@ async function reloadAllFromLocal(){
   }, 40000);
   setInterval(()=>{
     if(navigator.onLine === false || document.hidden) return;
-    Promise.all(ALL_SYNC_KEYS.map(k=>pullAndMergeIfNeeded(k))).then(results=>{
-      if(results.some(Boolean)) reloadAllFromLocal();
-    });
+    pullAllAndRefresh();
   }, 180000);
 })();
 </script>
