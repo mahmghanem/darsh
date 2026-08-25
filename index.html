@@ -1001,6 +1001,7 @@
       <div class="page-header">
         <button class="back-btn" onclick="goTo('home')">→</button>
         <h2 class="page-title">سداد المشتريات<small>كل المبالغ المسدَّدة للتجار: كاملة وجزئية، مع الشريك المسدِّد</small></h2>
+        <button class="header-danger-btn" onclick="askBulkAction('emptyPurchasePayments')">🗑️<span class="hdb-label">إعادة تعيين الصفحة</span></button>
       </div>
 
       <div class="grand-total">
@@ -1062,6 +1063,7 @@
       <div class="page-header">
         <button class="back-btn" onclick="goTo('home')">→</button>
         <h2 class="page-title">ديون المشتريات<small>ديوننا للتجار: كاملة وجزئية، مع إمكانية السداد من هنا</small></h2>
+        <button class="header-danger-btn" onclick="askBulkAction('emptyPurchaseDebts')">🗑️<span class="hdb-label">إعادة تعيين الصفحة</span></button>
       </div>
 
       <div class="grand-total">
@@ -2783,18 +2785,22 @@ function renderProfitSplit(){
   if(approveBtn) approveBtn.style.display = "block";
 }
 
-/* ============ زر الرجوع في المتصفح/الجوال يعود للخطوة السابقة داخل التطبيق ============ */
+/* ============ زر الرجوع في المتصفح/الجوال يعود للخطوة السابقة داخل التطبيق ============
+   نستخدم أسلوب الهاش (#) لأنه يعمل على كل المتصفحات وكل طرق فتح الملف (file:// وغيرها) */
 let CURRENT_VIEW = "home";
-let NAV_FROM_POPSTATE = false;
+let NAV_FROM_HASH = false;   // التنقل قادم من زر الرجوع نفسه
+let SUPPRESS_HASH = false;   // تجاهل تغيير هاش داخلي (إغلاق نافذة منبثقة)
 
 function goTo(view){
   document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
   document.getElementById("view-"+view).classList.add("active");
   window.scrollTo({top:0,behavior:"smooth"});
 
-  // تسجيل الخطوة في تاريخ المتصفح حتى يتنقل زر الرجوع داخل التطبيق بدل الخروج منه
-  if(!NAV_FROM_POPSTATE && view!==CURRENT_VIEW){
-    try{ history.pushState({view}, ""); }catch(e){}
+  // تسجيل الخطوة في تاريخ المتصفح (عبر الهاش) حتى يتنقل زر الرجوع داخل التطبيق بدل الخروج منه
+  if(!NAV_FROM_HASH && view!==CURRENT_VIEW){
+    SUPPRESS_HASH = true;
+    try{ location.hash = view; }catch(e){}
+    setTimeout(()=>{ SUPPRESS_HASH = false; }, 0);
   }
   CURRENT_VIEW = view;
 
@@ -4053,6 +4059,14 @@ const BULK_ACTION_MESSAGES = {
     title: "تفريغ صفحة الجرد",
     text: "سيتم إلغاء كل قرارات الترحيل والإتلاف المسجّلة نهائيًا من قاعدة البيانات، وستعود كل الأصناف إلى حالة \"بحاجة لمراجعة\" كما كانت أول مرة. (أيام أرشيف المشتريات والمبيعات نفسها لن تُحذف من هنا). هذا الإجراء لا يمكن التراجع عنه. هل أنت متأكد؟"
   },
+  emptyPurchasePayments: {
+    title: "إعادة تعيين صفحة سداد المشتريات",
+    text: "سيتم حذف كل سجلات السداد للتجار (الكاملة والجزئية) نهائيًا من قاعدة البيانات وستعود الصفحة فارغة كما كانت. (تنبيه: أرصدة الشركاء المرتبطة بهذه السجلات ستتأثر). هذا الإجراء لا يمكن التراجع عنه. هل أنت متأكد؟"
+  },
+  emptyPurchaseDebts: {
+    title: "إعادة تعيين صفحة ديون المشتريات",
+    text: "سيتم حذف كل ديون الشراء للتجار (الكاملة والجزئية) نهائيًا من قاعدة البيانات وستعود الصفحة فارغة كما كانت. هذا الإجراء لا يمكن التراجع عنه. هل أنت متأكد؟"
+  },
   resetPurchases: {
     title: "إعادة تعيين أرشيف المشتريات",
     text: "⚠️ سيتم حذف كل أرشيف المشتريات بكل أيامه وتجاره وأصنافه نهائيًا من قاعدة البيانات، وستبدأ الصفحة من الصفر تمامًا. هذا الإجراء لا يمكن التراجع عنه إطلاقًا. هل أنت متأكد من المتابعة؟"
@@ -4102,6 +4116,28 @@ async function confirmBulkAction(){
     if(!ok){ restoreGlobals(_snap); showConnErrorToast(); return; }
     renderDebtsPage();
     showToast("تم تفريغ صفحة الدين بالكامل");
+    return;
+  }
+
+  if(kind==="emptyPurchasePayments"){
+    Object.keys(PURCHASE_PAYMENTS_DB).forEach(id=>{ TOMBSTONES_DB.purchasePayments[id] = Date.now(); });
+    PURCHASE_PAYMENTS_DB = {};
+    await saveTombstonesDB();
+    const ok = await savePurchasePaymentsDB();
+    if(!ok){ restoreGlobals(_snap); showConnErrorToast(); return; }
+    renderPurchasePaymentsPage();
+    showToast("تم إعادة تعيين صفحة سداد المشتريات بالكامل");
+    return;
+  }
+
+  if(kind==="emptyPurchaseDebts"){
+    Object.keys(PURCHASE_DEBTS_DB).forEach(id=>{ TOMBSTONES_DB.purchaseDebts[id] = Date.now(); });
+    PURCHASE_DEBTS_DB = {};
+    await saveTombstonesDB();
+    const ok = await savePurchaseDebtsDB();
+    if(!ok){ restoreGlobals(_snap); showConnErrorToast(); return; }
+    renderPurchaseDebtsPage();
+    showToast("تم إعادة تعيين صفحة ديون المشتريات بالكامل");
     return;
   }
 
@@ -4573,16 +4609,22 @@ async function reloadAllFromLocal(){
 }
 
 /* ============ BOOT ============ */
-window.addEventListener("popstate", (e)=>{
+window.addEventListener("hashchange", ()=>{
+  if(SUPPRESS_HASH) return;
+
   // إن كانت نافذة منبثقة مفتوحة: زر الرجوع يغلقها فقط ويبقى على نفس الصفحة
   const openModal = document.querySelector(".modal-overlay.active");
   if(openModal){
     document.querySelectorAll(".modal-overlay.active").forEach(m=>m.classList.remove("active"));
-    try{ history.pushState({view: CURRENT_VIEW}, ""); }catch(err){}
+    SUPPRESS_HASH = true;
+    try{ location.hash = CURRENT_VIEW; }catch(err){}
+    setTimeout(()=>{ SUPPRESS_HASH = false; }, 0);
     return;
   }
-  const v = (e.state && e.state.view) || "home";
-  NAV_FROM_POPSTATE = true;
+
+  let v = (location.hash||"").replace(/^#\/?/, "") || "home";
+  if(!document.getElementById("view-"+v)) v = "home";
+  NAV_FROM_HASH = true;
   try{
     // صفحات التفاصيل تحتاج سياقًا محفوظًا — إن فُقد نعود للقائمة الأم بدلًا منها
     if(v==="archive-detail" && !currentDetailDate) goTo("archive");
@@ -4591,11 +4633,12 @@ window.addEventListener("popstate", (e)=>{
     else if(v==="partner-detail" && !currentPartnerName) goTo("partners");
     else if(v==="company-detail" && !currentCompanyDate) goTo("company");
     else goTo(v);
-  } finally { NAV_FROM_POPSTATE = false; }
+  } finally { NAV_FROM_HASH = false; }
 });
 
 (async function init(){
-  try{ history.replaceState({view:"home"}, ""); }catch(e){}
+  // نقطة البداية في تاريخ المتصفح = الصفحة الرئيسية (استبدال لا إضافة)
+  try{ history.replaceState(null, "", "#home"); }catch(e){ try{ location.hash = "home"; }catch(e2){} }
   populateTypeSelect(document.getElementById("in-type"), true);
   populatePartnerSelect(document.getElementById("in-buyer"), "اختر الشريك المشتري");
   populatePartnerSelect(document.getElementById("sale-paid-to"), "اختر الشريك المستلم");
