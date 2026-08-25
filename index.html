@@ -2783,10 +2783,27 @@ function renderProfitSplit(){
   if(approveBtn) approveBtn.style.display = "block";
 }
 
+/* ============ زر الرجوع في المتصفح/الجوال يعود للخطوة السابقة داخل التطبيق ============ */
+let CURRENT_VIEW = "home";
+let NAV_FROM_POPSTATE = false;
+
 function goTo(view){
   document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
   document.getElementById("view-"+view).classList.add("active");
   window.scrollTo({top:0,behavior:"smooth"});
+
+  // تسجيل الخطوة في تاريخ المتصفح حتى يتنقل زر الرجوع داخل التطبيق بدل الخروج منه
+  if(!NAV_FROM_POPSTATE && view!==CURRENT_VIEW){
+    try{ history.pushState({view}, ""); }catch(e){}
+  }
+  CURRENT_VIEW = view;
+
+  // عند الرجوع لصفحات التفاصيل نعيد رسمها من سياقها المحفوظ
+  if(view==="archive-detail" && currentDetailDate){ try{ renderDetailTable(); }catch(e){} }
+  if(view==="sales-archive-detail" && currentSalesDetailDate){ try{ renderSalesDetailTable(); }catch(e){} }
+  if(view==="inventory-detail" && currentInventoryDetailDate){ try{ renderInventoryDetailTable(); }catch(e){} }
+  if(view==="partner-detail" && currentPartnerName){ try{ renderPartnerDetail(); }catch(e){} }
+  if(view==="company-detail" && currentCompanyDate){ try{ renderCompanyDetail(); }catch(e){} }
   if(view==="purchases"){
     const key = todayKey();
     document.getElementById("purchase-date-line").textContent = `${dayNameOf(key)} • ${formatDateArabic(key)}`;
@@ -4556,7 +4573,29 @@ async function reloadAllFromLocal(){
 }
 
 /* ============ BOOT ============ */
+window.addEventListener("popstate", (e)=>{
+  // إن كانت نافذة منبثقة مفتوحة: زر الرجوع يغلقها فقط ويبقى على نفس الصفحة
+  const openModal = document.querySelector(".modal-overlay.active");
+  if(openModal){
+    document.querySelectorAll(".modal-overlay.active").forEach(m=>m.classList.remove("active"));
+    try{ history.pushState({view: CURRENT_VIEW}, ""); }catch(err){}
+    return;
+  }
+  const v = (e.state && e.state.view) || "home";
+  NAV_FROM_POPSTATE = true;
+  try{
+    // صفحات التفاصيل تحتاج سياقًا محفوظًا — إن فُقد نعود للقائمة الأم بدلًا منها
+    if(v==="archive-detail" && !currentDetailDate) goTo("archive");
+    else if(v==="sales-archive-detail" && !currentSalesDetailDate) goTo("sales-archive");
+    else if(v==="inventory-detail" && !currentInventoryDetailDate) goTo("inventory");
+    else if(v==="partner-detail" && !currentPartnerName) goTo("partners");
+    else if(v==="company-detail" && !currentCompanyDate) goTo("company");
+    else goTo(v);
+  } finally { NAV_FROM_POPSTATE = false; }
+});
+
 (async function init(){
+  try{ history.replaceState({view:"home"}, ""); }catch(e){}
   populateTypeSelect(document.getElementById("in-type"), true);
   populatePartnerSelect(document.getElementById("in-buyer"), "اختر الشريك المشتري");
   populatePartnerSelect(document.getElementById("sale-paid-to"), "اختر الشريك المستلم");
