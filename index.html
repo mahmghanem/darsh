@@ -1266,6 +1266,142 @@ window.storage = {
 
 /* عندما يعود الاتصال بعد انقطاع، أو عند فشل الاتصال بقاعدة البيانات، لا نُفشل
    الحفظ ولا نتراجع عن بيانات المستخدم — البيانات محفوظة محليًا بأمان دومًا */
+/* ======================================================================
+   سجل الأمان (Safety Journal) — الحماية القصوى ضد اختفاء المدخلات
+   ----------------------------------------------------------------------
+   كل إدخال (شراء/بيع/سداد/دين) يُدوَّن فور حفظه في سجل محلي مستقل تمامًا
+   عن نظام المزامنة: لا يُرفع للسحابة ولا يخضع لأي دمج ولا يمكن لأي عملية
+   مزامنة أن تمسّه. وبعد كل مزامنة أو جلب من السحابة يفحص التطبيق تلقائيًا
+   أن كل إدخالات هذا الجهاز ما زالت موجودة في الجداول — وأي إدخال مفقود
+   يُعاد حقنه فورًا ويُدفع للسحابة من جديد. بهذا يصبح اختفاء إدخال
+   أدخلته بيدك مستحيلًا مهما كان سبب الخلل.
+   (الحذف المتعمَّد يبقى محترمًا: العناصر التي حذفتها بنفسك أو أزلتها عبر
+   "إعادة تعيين/تفريغ" لا يعيدها السجل.)
+   ====================================================================== */
+const JOURNAL_KEY = "safety_journal_v1";
+const JOURNAL_MAX_AGE_MS = 60*24*60*60*1000; // نحتفظ بآخر 60 يومًا
+const JOURNAL_MAX_ENTRIES = 6000;
+let IS_HEALING = false;
+let healDebounceTimer = null;
+
+async function journalLoad(){
+  try{
+    const rec = await localGet(JOURNAL_KEY);
+    if(rec && rec.value){
+      const j = JSON.parse(rec.value);
+      if(j && Array.isArray(j.entries)) return { entries: j.entries, cutoffs: j.cutoffs || {} };
+    }
+  }catch(e){ console.warn("[سجل الأمان] تعذّرت القراءة", e); }
+  return { entries: [], cutoffs: {} };
+}
+async function journalSave(j){
+  try{
+    const now = Date.now();
+    j.entries = j.entries.filter(en=> now - en.t < JOURNAL_MAX_AGE_MS);
+    if(j.entries.length > JOURNAL_MAX_ENTRIES) j.entries = j.entries.slice(-JOURNAL_MAX_ENTRIES);
+    await localSet({ key: JOURNAL_KEY, value: JSON.stringify(j), dirty:false, localUpdatedAt: now });
+  }catch(e){ console.warn("[سجل الأمان] تعذّر الحفظ", e); }
+}
+async function journalAppend(entry){
+  try{
+    const j = await journalLoad();
+    entry.t = Date.now();
+    j.entries.push(entry);
+    await journalSave(j);
+  }catch(e){ console.warn("[سجل الأمان] تعذّر التدوين", e); }
+}
+async function journalSetCutoff(kind){
+  // تُستدعى عند "إعادة تعيين/تفريغ" متعمَّد: ما قبل هذه اللحظة لا يُستعاد
+  try{
+    const j = await journalLoad();
+    j.cutoffs[kind] = Date.now();
+    await journalSave(j);
+  }catch(e){ console.warn("[سجل الأمان] تعذّر تسجيل حد التعيين", e); }
+}
+
+function _findItemAnywhere(dayData, listField, itemId){
+  if(!dayData) return false;
+  return (dayData[listField]||[]).some(o=> (o.items||[]).some(it=> it.id===itemId));
+}
+
+async function healFromJournal(){
+  if(IS_HEALING) return;
+  IS_HEALING = true;
+  try{
+    const j = await journalLoad();
+    if(!j.entries.length) return;
+    const cut = j.cutoffs || {};
+    const itemTomb = (TOMBSTONES_DB.items)||{};
+    const merchTomb = (TOMBSTONES_DB.merchants)||{};
+    const custTomb = (TOMBSTONES_DB.customers)||{};
+    const payTomb = (TOMBSTONES_DB.payments)||{};
+    const debtTomb = (TOMBSTONES_DB.debts)||{};
+    let nPur=0, nSale=0, nPay=0, nDebt=0;
+
+    for(const en of j.entries){
+      try{
+        if(en.kind==="purchase"){
+          if(en.t <= (cut.purchase||0)) continue;           // أزيل عبر إعادة تعيين متعمَّدة
+          if(en.item && itemTomb[en.item.id]) continue;      // حُذف بيد المستخدم
+          if(en.ownerId && merchTomb[en.ownerId]) continue;  // تاجره حُذف بيد المستخدم
+          if(_findItemAnywhere(DB[en.date], "merchants", en.item.id)) continue; // موجود سليم
+          if(!DB[en.date]) DB[en.date] = { day: dayNameOf(en.date), merchants: [], createdAt: en.t };
+          if(!DB[en.date].createdAt) DB[en.date].createdAt = en.t;
+          let m = DB[en.date].merchants.find(x=> x.id===en.ownerId)
+               || DB[en.date].merchants.find(x=> x.name.trim()===String(en.ownerName||"").trim());
+          if(!m){ m = { id: en.ownerId || genId(), name: en.ownerName || "غير معروف", items: [] }; DB[en.date].merchants.push(m); }
+          m.items.push(en.item);
+          nPur++;
+        }
+        else if(en.kind==="sale"){
+          if(en.t <= (cut.sale||0)) continue;
+          if(en.item && itemTomb[en.item.id]) continue;
+          if(en.ownerId && custTomb[en.ownerId]) continue;
+          if(_findItemAnywhere(SALES_DB[en.date], "customers", en.item.id)) continue;
+          if(!SALES_DB[en.date]) SALES_DB[en.date] = { day: dayNameOf(en.date), customers: [], createdAt: en.t };
+          if(!SALES_DB[en.date].createdAt) SALES_DB[en.date].createdAt = en.t;
+          let c = SALES_DB[en.date].customers.find(x=> x.id===en.ownerId)
+               || SALES_DB[en.date].customers.find(x=> x.name.trim()===String(en.ownerName||"").trim());
+          if(!c){ c = { id: en.ownerId || genId(), name: en.ownerName || "غير معروف", items: [] }; SALES_DB[en.date].customers.push(c); }
+          c.items.push(en.item);
+          nSale++;
+        }
+        else if(en.kind==="payment"){
+          if(en.t <= (cut.payment||0)) continue;
+          if(!en.rec || payTomb[en.rec.id]) continue;
+          if(PAYMENTS_DB[en.rec.id]) continue;
+          PAYMENTS_DB[en.rec.id] = en.rec;
+          nPay++;
+        }
+        else if(en.kind==="debt"){
+          if(en.t <= (cut.debt||0)) continue;
+          if(!en.rec || debtTomb[en.rec.id]) continue;
+          if(DEBTS_DB[en.rec.id]) continue;                  // موجود (ربما بحالة سداد أحدث): لا نلمسه
+          DEBTS_DB[en.rec.id] = en.rec;
+          nDebt++;
+        }
+      }catch(e){ console.warn("[سجل الأمان] تعذّرت معالجة قيد", e); }
+    }
+
+    const total = nPur+nSale+nPay+nDebt;
+    if(total>0){
+      console.warn("[سجل الأمان] استعادة إدخالات مفقودة:", {مشتريات:nPur, مبيعات:nSale, سداد:nPay, دين:nDebt});
+      if(nPur) await saveDB();
+      if(nSale) await saveSalesDB();
+      if(nPay) await savePaymentsDB();
+      if(nDebt) await saveDebtsDB();
+      refreshAllViews();
+      showToast(`🛡️ سجل الأمان: تمت استعادة ${total} إدخال كان مفقودًا وإعادة مزامنته`, 5200);
+    }
+  } finally {
+    IS_HEALING = false;
+  }
+}
+function scheduleHeal(){
+  clearTimeout(healDebounceTimer);
+  healDebounceTimer = setTimeout(()=>{ healFromJournal(); }, 600);
+}
+
 function showConnErrorToast(){
   // لم تعد هناك حالة "فشل حفظ" حقيقية بفضل التخزين المحلي؛ هذه الدالة الآن
   // تُستدعى فقط في حالات فشل استثنائية (مثل امتلاء مساحة التخزين على الجهاز)
@@ -1340,6 +1476,7 @@ function applyMergedValue(key, value){
   else if(key===TOMBSTONES_STORAGE_KEY) TOMBSTONES_DB = value;
   else return;
   refreshAllViews();
+  scheduleHeal(); // فحص تلقائي بعد كل دمج: أي إدخال مفقود يُستعاد فورًا من سجل الأمان
 }
 
 /* ============ دمج البيانات عند تعارض نسختين (هذا الجهاز وجهاز آخر) ============ */
@@ -1372,7 +1509,10 @@ function mergeStores(key, local, remote){
         const tombTime = dateTomb[date];
         if(tombTime){
           const dayCreated = Math.max((l && l.createdAt)||0, (r && r.createdAt)||0);
-          if(dayCreated <= tombTime) return; // اليوم أقدم من إعادة التعيين: يبقى محذوفًا
+          if(dayCreated <= tombTime){
+            console.warn("[دمج] إسقاط يوم بسبب شاهد إعادة تعيين:", key, date, {tombTime, dayCreated});
+            return; // اليوم أقدم من إعادة التعيين: يبقى محذوفًا (سجل الأمان يحمي الإدخالات الأحدث)
+          }
         }
         if(!l){ merged[date] = r; return; }
         if(!r){ merged[date] = l; return; }
@@ -1766,8 +1906,10 @@ async function addPurchase(){
   if(!DB[key].createdAt) DB[key].createdAt = Date.now();
   // نفس التاجر (بالاسم) يُلحق به الصنف الجديد بدل إنشاء تاجر مكرر
   const m = getOrCreateMerchant(DB[key], merchant);
-  m.items.push({id: genId(), type, qty, price, amount});
+  const _newItem = {id: genId(), type, qty, price, amount};
+  m.items.push(_newItem);
   const ok = await saveDB();
+  if(ok){ journalAppend({kind:"purchase", date:key, ownerId:m.id, ownerName:m.name, item:_newItem}); }
   if(!ok){
     restoreGlobals(_snap);
     renderTodayMerchantItems(merchant);
@@ -1945,6 +2087,10 @@ async function addSale(){
     payment: {kind: paymentType, paidAmount, debtAmount}
   });
   let ok = await saveSalesDB();
+  if(ok){
+    const _saleItem = c.items[c.items.length-1];
+    journalAppend({kind:"sale", date:key, ownerId:c.id, ownerName:c.name, item:_saleItem});
+  }
 
   // إرسال تفاصيل العملية إلى صفحة السداد و/أو صفحة الدين حسب نوع السداد المختار
   const recordBase = {
@@ -2003,7 +2149,9 @@ async function addPaymentRecord(data){
     sourceSaleDate: data.sourceSaleDate||null, sourceItemId: data.sourceItemId||null,
     debtId: data.debtId||null
   };
-  return await savePaymentsDB();
+  const _pOk = await savePaymentsDB();
+  if(_pOk){ journalAppend({kind:"payment", rec: PAYMENTS_DB[id]}); }
+  return _pOk;
 }
 async function addDebtRecord(data){
   const id = genId();
@@ -2016,7 +2164,9 @@ async function addDebtRecord(data){
     sourceSaleDate: data.sourceSaleDate||null, sourceItemId: data.sourceItemId||null,
     settled: false, history: []
   };
-  return await saveDebtsDB();
+  const _dOk = await saveDebtsDB();
+  if(_dOk){ journalAppend({kind:"debt", rec: DEBTS_DB[id]}); }
+  return _dOk;
 }
 
 /* -------- صفحة السداد -------- */
@@ -2504,6 +2654,7 @@ async function confirmBulkAction(){
   const _snap = snapshotGlobals();
 
   if(kind==="emptyPayments"){
+    await journalSetCutoff("payment");
     Object.keys(PAYMENTS_DB).forEach(id=>{ TOMBSTONES_DB.payments[id] = Date.now(); });
     PAYMENTS_DB = {};
     await saveTombstonesDB();
@@ -2515,6 +2666,7 @@ async function confirmBulkAction(){
   }
 
   if(kind==="emptyDebts"){
+    await journalSetCutoff("debt");
     Object.keys(DEBTS_DB).forEach(id=>{ TOMBSTONES_DB.debts[id] = Date.now(); });
     DEBTS_DB = {};
     await saveTombstonesDB();
@@ -2542,6 +2694,7 @@ async function confirmBulkAction(){
   }
 
   if(kind==="resetPurchases"){
+    await journalSetCutoff("purchase");
     if(!TOMBSTONES_DB.datesPurchases) TOMBSTONES_DB.datesPurchases = {};
     Object.keys(DB).forEach(date=>{ TOMBSTONES_DB.datesPurchases[date] = Date.now(); });
     DB = {};
@@ -2556,6 +2709,7 @@ async function confirmBulkAction(){
   }
 
   if(kind==="resetSales"){
+    await journalSetCutoff("sale");
     if(!TOMBSTONES_DB.datesSales) TOMBSTONES_DB.datesSales = {};
     Object.keys(SALES_DB).forEach(date=>{ TOMBSTONES_DB.datesSales[date] = Date.now(); });
     SALES_DB = {};
@@ -2970,6 +3124,7 @@ async function reloadAllFromLocal(){
   await loadDebtsDB();
   await loadTombstonesDB();
   refreshAllViews();
+  scheduleHeal(); // فحص تلقائي بعد كل جلب من السحابة
 }
 
 /* ============ BOOT ============ */
@@ -2998,6 +3153,9 @@ async function reloadAllFromLocal(){
   }
   markUnsyncedUI();
   updateSyncBadge();
+
+  // فحص سجل الأمان عند الإقلاع: يستعيد أي إدخال فُقد حتى أثناء إغلاق التطبيق
+  await healFromJournal();
 
   // إن توفر الاتصال، تحقق في الخلفية من وجود تحديثات من جهاز آخر وادمجها، وزامن أي تعديلات معلّقة من هذا الجهاز
   if(SUPABASE_CONFIGURED && navigator.onLine !== false){
