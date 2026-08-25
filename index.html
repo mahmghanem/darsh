@@ -563,6 +563,13 @@
           </button>
         </div>
         <div class="stamp-row" style="margin-top:20px;">
+          <button class="stamp-btn" onclick="goTo('customer-debts')">
+            <span class="icon">📖</span>
+            <span class="label">ديون الزبائن</span>
+            <span class="hint">كل زبون بإجمالي دينه وتفاصيل عملياته</span>
+          </button>
+        </div>
+        <div class="stamp-row" style="margin-top:20px;">
           <button class="stamp-btn" onclick="goTo('expenses')">
             <span class="icon">💸</span>
             <span class="label">المصاريف العامة</span>
@@ -634,11 +641,6 @@
         </div>
 
         <div class="field">
-          <label>المشتري (الشريك)</label>
-          <select id="in-buyer"><option value="">اختر الشريك المشتري</option></select>
-        </div>
-
-        <div class="field">
           <label>نوع الشراء</label>
           <select id="in-pay-kind" onchange="onPurchasePayKindChange()">
             <option value="">اختر نوع الشراء</option>
@@ -646,6 +648,11 @@
             <option value="partial">🟡 سداد جزئي</option>
             <option value="debt">🔴 دين (بدون دفع الآن)</option>
           </select>
+        </div>
+
+        <div class="field" id="purchase-buyer-field" style="display:none;">
+          <label>المشتري (الشريك)</label>
+          <select id="in-buyer"><option value="">اختر الشريك المشتري</option></select>
         </div>
 
         <div class="field" id="purchase-partial-field" style="display:none;">
@@ -765,8 +772,15 @@
           </div>
         </div>
 
+        <button class="btn btn-ghost btn-block" onclick="addSaleItemToCart()">➕ إضافة صنف آخر لنفس الزبون</button>
+
+        <div id="sale-cart-box" class="mini-items-box" style="display:none;margin-top:10px;">
+          <div class="mib-title">🧺 أصناف هذه العملية (تُسدَّد مرة واحدة)</div>
+          <div id="sale-cart-list"></div>
+        </div>
+
         <div class="amount-box">
-          <span class="amt-label">المبلغ</span>
+          <span class="amt-label">الإجمالي الكلي للعملية</span>
           <span class="amt-value" id="sale-amt-display">0 ₪</span>
         </div>
 
@@ -1098,6 +1112,28 @@
     </div>
   </section>
 
+  <!-- ================= CUSTOMER DEBTS (ديون الزبائن) ================= -->
+  <section id="view-customer-debts" class="view">
+    <div class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="goTo('home')">→</button>
+        <h2 class="page-title">ديون الزبائن<small>كل زبون بإجمالي دينه — اضغط على الاسم لكل التفاصيل</small></h2>
+        <div style="margin-inline-start:auto;">
+          <input type="text" id="customer-debts-search" placeholder="🔍 ابحث عن اسم الزبون..."
+                 oninput="renderCustomerDebtsPage()"
+                 style="padding:9px 12px;border-radius:12px;border:1.5px solid rgba(0,0,0,.15);font-family:inherit;font-size:13px;min-width:180px;">
+        </div>
+      </div>
+
+      <div class="grand-total">
+        <span class="gt-label">إجمالي ديون كل الزبائن</span>
+        <span class="gt-value" id="customer-debts-grand-total">0 ₪</span>
+      </div>
+
+      <div id="customer-debts-list"></div>
+    </div>
+  </section>
+
   <!-- ================= PARTNERS (الشركاء) ================= -->
   <section id="view-partners" class="view">
     <div class="page">
@@ -1122,21 +1158,8 @@
         <span class="gt-value" id="partner-balance">0 ₪</span>
       </div>
 
-      <div class="card" style="padding:0;overflow:hidden;">
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>التاريخ</th>
-                <th>العملية</th>
-                <th>التفاصيل</th>
-                <th>المبلغ</th>
-              </tr>
-            </thead>
-            <tbody id="partner-ops-tbody"></tbody>
-          </table>
-        </div>
-      </div>
+      <div id="partner-week-box"></div>
+      <div id="partner-days-list"></div>
       <div id="partner-ops-empty" class="empty-state" style="display:none;">
         <div class="ico">👤</div>
         <div>لا توجد عمليات مسجلة لهذا الشريك بعد</div>
@@ -1197,6 +1220,8 @@
           </table>
         </div>
       </div>
+      <button class="btn btn-primary btn-block" id="approve-profit-btn" style="display:none;margin-top:10px;" onclick="askProfitApprove()">🏅 اعتماد الربح لكل شريك</button>
+      <div id="profit-approved-note" style="display:none;margin-top:8px;text-align:center;font-weight:800;color:var(--success);"></div>
     </div>
   </section>
 
@@ -1243,6 +1268,18 @@
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeBulkConfirm()">لا</button>
       <button class="btn btn-primary" style="background:var(--danger);box-shadow:0 8px 18px rgba(178,58,46,.35);" onclick="confirmBulkAction()">نعم، متابعة</button>
+    </div>
+  </div>
+</div>
+
+<!-- PROFIT APPROVE CONFIRM MODAL -->
+<div class="modal-overlay" id="profit-approve-overlay">
+  <div class="modal-box">
+    <h3>اعتماد الربح لكل شريك</h3>
+    <p id="profit-approve-text">هل أنت متأكد من اعتماد الربح لكل شريك؟ سيُسجَّل نصيب كل شريك المحدد في صفحته بتاريخ هذا اليوم.</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeProfitApprove()">لا</button>
+      <button class="btn btn-primary" onclick="confirmProfitApprove()">نعم، اعتمد الربح</button>
     </div>
   </div>
 </div>
@@ -1558,7 +1595,7 @@ window.storage = {
    (الحذف المتعمَّد يبقى محترمًا: العناصر التي حذفتها بنفسك أو أزلتها عبر
    "إعادة تعيين/تفريغ" لا يعيدها السجل.)
    ====================================================================== */
-const JOURNAL_KEY = "safety_journal_v1";
+const JOURNAL_KEY = "safety_journal_v2";
 const JOURNAL_MAX_AGE_MS = 60*24*60*60*1000; // نحتفظ بآخر 60 يومًا
 const JOURNAL_MAX_ENTRIES = 6000;
 let IS_HEALING = false;
@@ -1616,7 +1653,7 @@ async function healFromJournal(){
     const custTomb = (TOMBSTONES_DB.customers)||{};
     const payTomb = (TOMBSTONES_DB.payments)||{};
     const debtTomb = (TOMBSTONES_DB.debts)||{};
-    let nPur=0, nSale=0, nPay=0, nDebt=0, nPPay=0, nPDebt=0, nExp=0;
+    let nPur=0, nSale=0, nPay=0, nDebt=0, nPPay=0, nPDebt=0, nExp=0, nProfit=0;
 
     for(const en of j.entries){
       try{
@@ -1672,6 +1709,13 @@ async function healFromJournal(){
           PURCHASE_DEBTS_DB[en.rec.id] = en.rec;
           nPDebt++;
         }
+        else if(en.kind==="profit"){
+          if(!en.rec || !en.date) continue;
+          const ex = PROFITS_DB[en.date];
+          if(ex && (ex.approvedAt||0) >= (en.rec.approvedAt||0)) continue;
+          PROFITS_DB[en.date] = en.rec;
+          nProfit++;
+        }
         else if(en.kind==="expense"){
           if(!en.item || (TOMBSTONES_DB.expensesItems||{})[en.item.id]) continue;
           if(EXPENSES_DB[en.date] && (EXPENSES_DB[en.date].items||[]).some(it=>it.id===en.item.id)) continue;
@@ -1682,7 +1726,7 @@ async function healFromJournal(){
       }catch(e){ console.warn("[سجل الأمان] تعذّرت معالجة قيد", e); }
     }
 
-    const total = nPur+nSale+nPay+nDebt+nPPay+nPDebt+nExp;
+    const total = nPur+nSale+nPay+nDebt+nPPay+nPDebt+nExp+nProfit;
     if(total>0){
       console.warn("[سجل الأمان] استعادة إدخالات مفقودة:", {مشتريات:nPur, مبيعات:nSale, سداد:nPay, دين:nDebt, سداد_مشتريات:nPPay, ديون_مشتريات:nPDebt, مصاريف:nExp});
       if(nPur) await saveDB();
@@ -1692,6 +1736,7 @@ async function healFromJournal(){
       if(nPPay) await savePurchasePaymentsDB();
       if(nPDebt) await savePurchaseDebtsDB();
       if(nExp) await saveExpensesDB();
+      if(nProfit) await saveProfitsDB();
       refreshAllViews();
       showToast(`🛡️ سجل الأمان: تمت استعادة ${total} إدخال كان مفقودًا وإعادة مزامنته`, 5200);
     }
@@ -1713,21 +1758,22 @@ function showConnErrorToast(){
 /* ============ CONFIG ============ */
 const FISH_TYPES = ["دنيس","قاروص","بوري","جرع","سردين","لوكس","لوكس 111","طرخونة","باغة","صروص","سلطان","سويسي","مليطة","سلاطعين","جمبري","كلماري","مياس","سفرنه","بلميدا","بزرة","سكمبلة","صنف آخر"];
 const DAY_NAMES = ["الأحد","الاثنين","الثلاثاء","الأربعاء","الخميس","الجمعة","السبت"];
-const STORAGE_KEY = "purchases_archive_v1";
-const SALES_STORAGE_KEY = "sales_archive_v1";
-const RESOLUTIONS_STORAGE_KEY = "inventory_resolutions_v1";
-const PAYMENTS_STORAGE_KEY = "payments_archive_v1";
-const DEBTS_STORAGE_KEY = "debts_archive_v1";
-const PURCHASE_PAYMENTS_STORAGE_KEY = "purchase_payments_archive_v1";
-const PURCHASE_DEBTS_STORAGE_KEY = "purchase_debts_archive_v1";
-const EXPENSES_STORAGE_KEY = "expenses_archive_v1";
-const TOMBSTONES_STORAGE_KEY = "tombstones_v1"; // سجل العناصر المحذوفة، يمنع عودتها بالغلط بعد دمج بيانات جهازين
+const STORAGE_KEY = "purchases_archive_v2";
+const SALES_STORAGE_KEY = "sales_archive_v2";
+const RESOLUTIONS_STORAGE_KEY = "inventory_resolutions_v2";
+const PAYMENTS_STORAGE_KEY = "payments_archive_v2";
+const DEBTS_STORAGE_KEY = "debts_archive_v2";
+const PURCHASE_PAYMENTS_STORAGE_KEY = "purchase_payments_archive_v2";
+const PURCHASE_DEBTS_STORAGE_KEY = "purchase_debts_archive_v2";
+const EXPENSES_STORAGE_KEY = "expenses_archive_v2";
+const PROFITS_STORAGE_KEY = "approved_profits_v2";
+const TOMBSTONES_STORAGE_KEY = "tombstones_v2"; // سجل العناصر المحذوفة، يمنع عودتها بالغلط بعد دمج بيانات جهازين
 
 /* الشركاء (المشترون) — سبعة أسماء ثابتة، و"نقدي" لا يدخل في قسمة الأرباح */
 const PARTNERS = ["أبو صلاح","محمد","أمجد","أحمد بكر","بسام","أبو أحمد","نقدي"];
 const PROFIT_PARTNERS = ["أبو صلاح","محمد","أمجد","أحمد بكر","بسام","أبو أحمد"];
 const SHARED = true; // shared ledger so the whole team sees the same purchases
-const ALL_SYNC_KEYS = [STORAGE_KEY, SALES_STORAGE_KEY, RESOLUTIONS_STORAGE_KEY, PAYMENTS_STORAGE_KEY, DEBTS_STORAGE_KEY, PURCHASE_PAYMENTS_STORAGE_KEY, PURCHASE_DEBTS_STORAGE_KEY, EXPENSES_STORAGE_KEY, TOMBSTONES_STORAGE_KEY];
+const ALL_SYNC_KEYS = [STORAGE_KEY, SALES_STORAGE_KEY, RESOLUTIONS_STORAGE_KEY, PAYMENTS_STORAGE_KEY, DEBTS_STORAGE_KEY, PURCHASE_PAYMENTS_STORAGE_KEY, PURCHASE_DEBTS_STORAGE_KEY, EXPENSES_STORAGE_KEY, PROFITS_STORAGE_KEY, TOMBSTONES_STORAGE_KEY];
 
 let DB = {}; // { "2026-08-20": { day:"الخميس", merchants:[{id,name,items:[{id,type,qty,price,amount}]}] } }
 let currentDetailDate = null;
@@ -1754,6 +1800,7 @@ let DEBTS_DB = {}; // { id: {id,customerName,itemType,qty,price,grillEnabled,gri
 let PURCHASE_PAYMENTS_DB = {};
 let PURCHASE_DEBTS_DB = {};
 let EXPENSES_DB = {};
+let PROFITS_DB = {}; // الأرباح المعتمدة: date → {day, shares:{اسم الشريك: نصيبه}, approvedAt}
 let TOMBSTONES_DB = { merchants:{}, customers:{}, items:{}, debts:{}, payments:{}, purchasePayments:{}, purchaseDebts:{}, expensesItems:{}, datesPurchases:{}, datesSales:{}, datesExpenses:{}, resolutions:{} };
 // datesPurchases/datesSales: تُسجَّل فيها تواريخ الأيام التي حُذفت بالكامل عبر "إعادة تعيين الأرشيف"
 // حتى لا تعود بالغلط عند دمج بيانات جهاز آخر لم يستلم الحذف بعد.
@@ -1770,6 +1817,7 @@ function snapshotGlobals(){
     PURCHASE_PAYMENTS_DB: JSON.stringify(PURCHASE_PAYMENTS_DB),
     PURCHASE_DEBTS_DB: JSON.stringify(PURCHASE_DEBTS_DB),
     EXPENSES_DB: JSON.stringify(EXPENSES_DB),
+    PROFITS_DB: JSON.stringify(PROFITS_DB),
     TOMBSTONES_DB: JSON.stringify(TOMBSTONES_DB)
   };
 }
@@ -1782,6 +1830,7 @@ function restoreGlobals(snap){
   if(snap.PURCHASE_PAYMENTS_DB) PURCHASE_PAYMENTS_DB = JSON.parse(snap.PURCHASE_PAYMENTS_DB);
   if(snap.PURCHASE_DEBTS_DB) PURCHASE_DEBTS_DB = JSON.parse(snap.PURCHASE_DEBTS_DB);
   if(snap.EXPENSES_DB) EXPENSES_DB = JSON.parse(snap.EXPENSES_DB);
+  if(snap.PROFITS_DB) PROFITS_DB = JSON.parse(snap.PROFITS_DB);
   if(snap.TOMBSTONES_DB) TOMBSTONES_DB = JSON.parse(snap.TOMBSTONES_DB);
 }
 function applyMergedValue(key, value){
@@ -1794,6 +1843,7 @@ function applyMergedValue(key, value){
   else if(key===PURCHASE_PAYMENTS_STORAGE_KEY) PURCHASE_PAYMENTS_DB = value;
   else if(key===PURCHASE_DEBTS_STORAGE_KEY) PURCHASE_DEBTS_DB = value;
   else if(key===EXPENSES_STORAGE_KEY) EXPENSES_DB = value;
+  else if(key===PROFITS_STORAGE_KEY) PROFITS_DB = value;
   else if(key===TOMBSTONES_STORAGE_KEY) TOMBSTONES_DB = value;
   else return;
   refreshAllViews();
@@ -1911,6 +1961,17 @@ function mergeStores(key, local, remote){
       });
       return merged;
     }
+    if(key===PROFITS_STORAGE_KEY){
+      const dates = new Set([...Object.keys(local), ...Object.keys(remote)]);
+      const merged = {};
+      dates.forEach(date=>{
+        const l = local[date], r = remote[date];
+        if(!l){ merged[date]=r; return; }
+        if(!r){ merged[date]=l; return; }
+        merged[date] = ((l.approvedAt||0) >= (r.approvedAt||0)) ? l : r;
+      });
+      return merged;
+    }
     if(key===TOMBSTONES_STORAGE_KEY){
       return {
         merchants: {...(remote.merchants||{}), ...(local.merchants||{})},
@@ -1939,6 +2000,7 @@ function refreshAllViews(){
   try{ renderPaymentsPage(); }catch(e){}
   try{ renderDebtsPage(); }catch(e){}
   try{ renderPurchasePaymentsPage(); }catch(e){}
+  try{ renderCustomerDebtsPage(); }catch(e){}
   try{ renderPurchaseDebtsPage(); }catch(e){}
   try{ renderExpensesLists(); }catch(e){}
   try{ renderPartnersPage(); }catch(e){}
@@ -2194,6 +2256,18 @@ async function saveExpensesDB(){
     return !!res;
   }catch(e){ console.warn(e); return false; }
 }
+async function loadProfitsDB(){
+  try{
+    const res = await window.storage.get(PROFITS_STORAGE_KEY, SHARED);
+    if(res && res.value) PROFITS_DB = JSON.parse(res.value);
+  }catch(e){ console.warn(e); PROFITS_DB = PROFITS_DB || {}; }
+}
+async function saveProfitsDB(){
+  try{
+    const res = await window.storage.set(PROFITS_STORAGE_KEY, JSON.stringify(PROFITS_DB), SHARED);
+    return !!res;
+  }catch(e){ console.warn(e); return false; }
+}
 async function loadTombstonesDB(){
   try{
     const res = await window.storage.get(TOMBSTONES_STORAGE_KEY, SHARED);
@@ -2382,6 +2456,72 @@ function computePartnerBalance(name){
   const ops = computePartnerOps(name);
   return Math.round(ops.reduce((s,o)=> s + o.sign*o.amount, 0)*1000)/1000;
 }
+/* ============ ديون الزبائن: تجميع حسب الزبون مع بحث ============ */
+function renderCustomerDebtsPage(){
+  const wrap = document.getElementById("customer-debts-list");
+  const search = (document.getElementById("customer-debts-search").value||"").trim();
+  const open = Object.values(DEBTS_DB).filter(d=> !d.settled && d.remainingAmount>0.0001);
+  const byCustomer = {};
+  open.forEach(d=>{
+    const n = d.customerName||"غير معروف";
+    if(!byCustomer[n]) byCustomer[n] = [];
+    byCustomer[n].push(d);
+  });
+  let names = Object.keys(byCustomer);
+  const grand = Math.round(open.reduce((s,d)=>s+d.remainingAmount,0)*1000)/1000;
+  document.getElementById("customer-debts-grand-total").textContent = fmtMoney(grand);
+  if(search) names = names.filter(n=> n.includes(search));
+  // الترتيب: الأكبر دينًا أولًا
+  names.sort((a,b)=>{
+    const ta = byCustomer[a].reduce((s,d)=>s+d.remainingAmount,0);
+    const tb = byCustomer[b].reduce((s,d)=>s+d.remainingAmount,0);
+    return tb - ta || a.localeCompare(b,"ar");
+  });
+  if(names.length===0){
+    wrap.innerHTML = `<div class="empty-state"><div class="ico">📖</div><div>${search?`لا يوجد زبون باسم "${search}" عليه دين`:"لا توجد ديون زبائن حاليًا — ممتاز! 🎉"}</div></div>`;
+    return;
+  }
+  wrap.innerHTML = names.map((n,idx)=>{
+    const debts = byCustomer[n].sort((a,b)=> (b.lastUpdateDate||b.createdDate||"").localeCompare(a.lastUpdateDate||a.createdDate||""));
+    const total = Math.round(debts.reduce((s,d)=>s+d.remainingAmount,0)*1000)/1000;
+    const detailsHtml = debts.map(d=>{
+      const kindLabel = d.debtKind==="debt" ? "🔴 دين كامل" : "🟡 متبقي سداد جزئي";
+      const paidSoFar = Math.round((d.itemAmount - d.remainingAmount)*1000)/1000;
+      const historyHtml = (d.history||[]).length
+        ? `<div style="margin-top:6px;font-size:12px;color:var(--ink-soft);">سدادات سابقة: ${d.history.map(h=>`${fmtMoney(h.amountPaid)} بتاريخ ${formatDateArabic(h.date)}${h.partner?` (استلمها ${h.partner})`:""}`).join(" • ")}</div>`
+        : "";
+      return `
+        <div style="padding:10px 12px;border-top:1px dashed rgba(0,0,0,.12);">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;">
+            <div>
+              <div style="font-weight:800;">${d.detailsText ? d.detailsText : `${d.itemType}${d.grillEnabled?" 🔥":""} — ${fmtQty(d.qty)} × ${fmtMoney(d.price)}`}</div>
+              <div style="font-size:12px;color:var(--ink-soft);margin-top:3px;">
+                تاريخ العملية: ${dayNameOf(d.createdDate)} ${formatDateArabic(d.createdDate)}
+                • المبلغ الكلي: ${fmtMoney(d.itemAmount)}
+                ${paidSoFar>0.0001 ? `• المدفوع حتى الآن: <b style="color:var(--success);">${fmtMoney(paidSoFar)}</b>` : ""}
+              </div>
+              ${historyHtml}
+              <span class="debt-kind-pill ${d.debtKind==="debt"?"debt":"partial"}" style="margin-top:6px;display:inline-block;">${kindLabel}</span>
+            </div>
+            <div class="debt-amount" style="white-space:nowrap;">${fmtMoney(d.remainingAmount)}</div>
+          </div>
+        </div>`;
+    }).join("");
+    return `
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:12px;">
+      <button style="all:unset;box-sizing:border-box;display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;padding:14px 16px;cursor:pointer;"
+              onclick="const d=document.getElementById('cust-debt-details-${idx}');d.style.display=d.style.display==='block'?'none':'block';">
+        <span style="display:flex;flex-direction:column;gap:3px;">
+          <b style="font-size:16px;">🧑 ${n}</b>
+          <span style="font-size:12px;color:var(--ink-soft);">${debts.length} ${debts.length===1?"عملية دين":"عمليات دين"} — اضغط لعرض التفاصيل</span>
+        </span>
+        <span class="debt-amount" style="font-size:18px;font-weight:900;color:var(--danger);white-space:nowrap;">${fmtMoney(total)}</span>
+      </button>
+      <div id="cust-debt-details-${idx}" style="display:none;background:rgba(0,0,0,.02);">${detailsHtml}</div>
+    </div>`;
+  }).join("");
+}
+
 function renderPartnersPage(){
   const wrap = document.getElementById("partners-list");
   wrap.innerHTML = PARTNERS.map(name=>{
@@ -2409,20 +2549,69 @@ function renderPartnerDetail(){
   const balEl = document.getElementById("partner-balance");
   balEl.textContent = (bal>0.0001?"+":"") + fmtMoney(bal);
   balEl.style.color = bal>0.0001 ? "var(--success)" : bal<-0.0001 ? "var(--danger)" : "";
-  const tbody = document.getElementById("partner-ops-tbody");
+
+  // إجمالي ربح الأسبوع السابق: يُحتسب صباح كل سبت الساعة 1، ويجمع نصيب الشريك المعتمد لأيام الأسبوع المنصرم فقط
+  const weekBox = document.getElementById("partner-week-box");
+  const win = lastWeekWindow();
+  let weekSum = 0, weekDays = 0;
+  Object.keys(PROFITS_DB).forEach(date=>{
+    const t = new Date(date+"T12:00:00").getTime();
+    if(t>=win.start && t<win.end && PROFITS_DB[date].shares && (name in PROFITS_DB[date].shares)){
+      weekSum += PROFITS_DB[date].shares[name]; weekDays++;
+    }
+  });
+  weekSum = Math.round(weekSum*1000)/1000;
+  if(weekDays>0){
+    weekBox.innerHTML = `<div class="card" style="margin-bottom:12px;border-inline-start:5px solid var(--sea-glow);">
+      <div style="font-weight:900;">📅 إجمالي ربح الأسبوع السابق (${formatDateArabic(win.startKey)} → ${formatDateArabic(win.endKey)})</div>
+      <div style="font-size:12px;color:var(--ink-soft);margin-top:3px;">يُحتسب صباح كل سبت الساعة 1 — مجموع نصيب الربح المعتمد لأيام الأسبوع المنصرم فقط (${weekDays} ${weekDays===1?"يوم":"أيام"})</div>
+      <div style="font-size:20px;font-weight:900;margin-top:6px;color:${weekSum>=0?"var(--success)":"var(--danger)"};">${weekSum>0?"+":""}${fmtMoney(weekSum)}</div>
+    </div>`;
+  } else { weekBox.innerHTML = ""; }
+
+  // تجميع العمليات يوميًا: صف اليوم أولًا وعند الضغط تظهر تفاصيله
+  const wrap = document.getElementById("partner-days-list");
   const emptyEl = document.getElementById("partner-ops-empty");
-  const card = tbody.closest(".card");
-  if(ops.length===0){
-    tbody.innerHTML=""; card.style.display="none"; emptyEl.style.display="block"; return;
+  const byDate = {};
+  ops.forEach(o=>{ if(!byDate[o.date]) byDate[o.date]=[]; byDate[o.date].push(o); });
+  Object.keys(PROFITS_DB).forEach(date=>{
+    if(PROFITS_DB[date].shares && (name in PROFITS_DB[date].shares) && !byDate[date]) byDate[date]=[];
+  });
+  const dates = Object.keys(byDate).sort((a,b)=> b.localeCompare(a));
+  if(dates.length===0){
+    wrap.innerHTML=""; emptyEl.style.display="block"; return;
   }
-  card.style.display="block"; emptyEl.style.display="none";
-  tbody.innerHTML = ops.map(o=>`
-    <tr>
-      <td>${dayNameOf(o.date)}<div class="cell-date-day">${formatDateArabic(o.date)}</div></td>
-      <td>${o.label}</td>
-      <td>${o.details}</td>
-      <td class="num" style="color:${o.sign>0?"var(--success)":"var(--danger)"};font-weight:800;">${o.sign>0?"+":"−"}${fmtMoney(o.amount)}</td>
-    </tr>`).join("");
+  emptyEl.style.display="none";
+  wrap.innerHTML = dates.map((date,idx)=>{
+    const dayOps = byDate[date];
+    const dayNet = Math.round(dayOps.reduce((s,o)=> s + o.sign*o.amount, 0)*1000)/1000;
+    const profitShare = PROFITS_DB[date] && PROFITS_DB[date].shares ? PROFITS_DB[date].shares[name] : undefined;
+    const profitLine = (profitShare!==undefined)
+      ? `<div style="margin-top:5px;font-weight:900;font-size:14px;color:${profitShare>=0?"var(--success)":"var(--danger)"};">🏅 صافي ربح اليوم: ${fmtMoney(profitShare)}</div>`
+      : "";
+    const opsHtml = dayOps.length ? `<div class="table-wrap"><table>
+        <thead><tr><th>العملية</th><th>التفاصيل</th><th>المبلغ</th></tr></thead>
+        <tbody>${dayOps.map(o=>`<tr>
+          <td>${o.label}</td>
+          <td>${o.details}</td>
+          <td class="num" style="color:${o.sign>0?"var(--success)":"var(--danger)"};font-weight:800;">${o.sign>0?"+":"−"}${fmtMoney(o.amount)}</td>
+        </tr>`).join("")}</tbody>
+      </table></div>` : `<div style="padding:12px;text-align:center;color:var(--ink-soft);font-size:13px;">لا عمليات مسجلة لهذا اليوم — يوجد ربح معتمد فقط</div>`;
+    return `
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:12px;">
+      <button style="all:unset;box-sizing:border-box;display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;padding:13px 16px;cursor:pointer;"
+              onclick="const d=document.getElementById('partner-day-${idx}');d.style.display=d.style.display==='block'?'none':'block';">
+        <span>
+          <b>📅 ${dayNameOf(date)} • ${formatDateArabic(date)}</b>
+          ${profitLine}
+        </span>
+        <span style="font-weight:900;white-space:nowrap;color:${dayNet>0.0001?"var(--success)":dayNet<-0.0001?"var(--danger)":"var(--ink-soft)"};">
+          رصيد اليوم: ${dayNet>0.0001?"+":""}${fmtMoney(dayNet)}
+        </span>
+      </button>
+      <div id="partner-day-${idx}" style="display:none;background:rgba(0,0,0,.02);">${opsHtml}</div>
+    </div>`;
+  }).join("");
 }
 
 /* ============ حساب الشركة ============ */
@@ -2461,6 +2650,52 @@ function companyAllDates(){
   const set = new Set([...Object.keys(DB), ...Object.keys(SALES_DB), ...Object.keys(EXPENSES_DB)]);
   return Array.from(set).sort((a,b)=> b.localeCompare(a));
 }
+/* نافذة الأسبوع السابق: من سبت الساعة 1 صباحًا إلى سبت الساعة 1 صباحًا التالي */
+function lastWeekWindow(){
+  const now = new Date();
+  const boundary = new Date(now);
+  boundary.setHours(1,0,0,0);
+  // getDay(): السبت = 6
+  let back = (boundary.getDay() - 6 + 7) % 7;
+  boundary.setDate(boundary.getDate() - back);
+  if(boundary.getTime() > now.getTime()) boundary.setDate(boundary.getDate()-7); // لم نبلغ سبت 1 صباحًا بعد
+  const end = boundary.getTime();
+  const start = end - 7*24*60*60*1000;
+  const toKey = t => { const d=new Date(t); const p=n=>String(n).padStart(2,"0"); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; };
+  return { start, end, startKey: toKey(start), endKey: toKey(end - 24*60*60*1000) };
+}
+
+/* اعتماد الربح لكل شريك */
+function askProfitApprove(){
+  const selected = Array.from(document.querySelectorAll(".company-partner-check:checked")).map(c=>c.value);
+  if(selected.length===0){ showToast("اختر الشركاء أولًا"); return; }
+  const net = netProfitForDay(currentCompanyDate);
+  const share = Math.round((net/selected.length)*1000)/1000;
+  document.getElementById("profit-approve-text").textContent =
+    `هل أنت متأكد من اعتماد الربح لكل شريك؟ سيُسجَّل نصيب ${fmtMoney(share)} لكل من: ${selected.join("، ")} — بتاريخ ${formatDateArabic(currentCompanyDate)} في صفحة الشركاء.`;
+  document.getElementById("profit-approve-overlay").classList.add("active");
+}
+function closeProfitApprove(){
+  document.getElementById("profit-approve-overlay").classList.remove("active");
+}
+async function confirmProfitApprove(){
+  closeProfitApprove();
+  const date = currentCompanyDate;
+  const selected = Array.from(document.querySelectorAll(".company-partner-check:checked")).map(c=>c.value);
+  if(!date || selected.length===0) return;
+  const net = netProfitForDay(date);
+  const share = Math.round((net/selected.length)*1000)/1000;
+  const _snap = snapshotGlobals();
+  const shares = {};
+  selected.forEach(n=> shares[n] = share);
+  PROFITS_DB[date] = { day: dayNameOf(date), shares, approvedAt: Date.now(), createdAt: (PROFITS_DB[date]&&PROFITS_DB[date].createdAt)||Date.now() };
+  const ok = await saveProfitsDB();
+  if(!ok){ restoreGlobals(_snap); showConnErrorToast(); return; }
+  journalAppend({kind:"profit", date, rec: PROFITS_DB[date]});
+  renderProfitSplit();
+  showToast(`🏅 تم اعتماد ربح ${formatDateArabic(date)}: ${fmtMoney(share)} لكل شريك من الشركاء المحددين`);
+}
+
 function renderCompanyPage(){
   const wrap = document.getElementById("company-days-list");
   const dates = companyAllDates();
@@ -2517,9 +2752,20 @@ function renderProfitSplit(){
   const date = currentCompanyDate;
   const selected = Array.from(document.querySelectorAll(".company-partner-check:checked")).map(c=>c.value);
   const tbody = document.getElementById("company-split-tbody");
-  const card = document.getElementById("company-split-card");
+  const approveBtn = document.getElementById("approve-profit-btn");
+  const note = document.getElementById("profit-approved-note");
+  const approved = PROFITS_DB[date];
+  if(note){
+    if(approved && approved.shares){
+      const names = Object.keys(approved.shares);
+      const amt = names.length ? approved.shares[names[0]] : 0;
+      note.style.display = "block";
+      note.textContent = `✅ ربح هذا اليوم معتمد: ${fmtMoney(amt)} لكل من ${names.join("، ")} — إعادة الاعتماد تستبدل السابق`;
+    } else { note.style.display = "none"; }
+  }
   if(selected.length===0){
     tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--ink-soft);">اختر الشركاء من الأعلى لعرض توزيع الربح</td></tr>`;
+    if(approveBtn) approveBtn.style.display = "none";
     return;
   }
   const net = netProfitForDay(date);
@@ -2534,6 +2780,7 @@ function renderProfitSplit(){
       <td class="num" style="font-weight:900;">${fmtMoney(final)}</td>
     </tr>`;
   }).join("");
+  if(approveBtn) approveBtn.style.display = "block";
 }
 
 function goTo(view){
@@ -2557,6 +2804,7 @@ function goTo(view){
   if(view==="payments"){ renderPaymentsPage(); }
   if(view==="debts"){ renderDebtsPage(); }
   if(view==="purchase-payments"){ renderPurchasePaymentsPage(); }
+  if(view==="customer-debts"){ renderCustomerDebtsPage(); }
   if(view==="purchase-debts"){ renderPurchaseDebtsPage(); }
   if(view==="expenses"){ initExpensesPage(); }
   if(view==="partners"){ renderPartnersPage(); }
@@ -2617,6 +2865,9 @@ function populatePartnerSelect(sel, placeholder){
 }
 function onPurchasePayKindChange(){
   const val = document.getElementById("in-pay-kind").value;
+  // اسم الشريك يظهر فقط عند السداد الكامل أو الجزئي — عند "دين" لا يظهر
+  document.getElementById("purchase-buyer-field").style.display = (val==="full"||val==="partial") ? "block" : "none";
+  if(val!=="full" && val!=="partial"){ document.getElementById("in-buyer").value=""; }
   document.getElementById("purchase-partial-field").style.display = val==="partial" ? "block" : "none";
   if(val!=="partial"){
     document.getElementById("in-partial-amount").value="";
@@ -2693,8 +2944,8 @@ async function addPurchase(){
   if(!merchant){ showToast("الرجاء إدخال اسم التاجر"); return; }
   if(!type){ showToast("الرجاء اختيار الصنف"); return; }
   if(qty<=0 || price<=0){ showToast("الرجاء إدخال الكمية والسعر"); return; }
-  if(!buyer){ showToast("الرجاء اختيار المشتري (الشريك)"); return; }
   if(!payKindSel){ showToast("الرجاء اختيار نوع الشراء"); return; }
+  if((payKindSel==="full"||payKindSel==="partial") && !buyer){ showToast("الرجاء اختيار المشتري (الشريك)"); return; }
   if(payKindSel==="partial" && partialVal<=0){ showToast("الرجاء إدخال مبلغ السداد الجزئي"); return; }
 
   const _snap = snapshotGlobals();
@@ -2722,14 +2973,14 @@ async function addPurchase(){
   }
 
   const m = getOrCreateMerchant(DB[key], merchant);
-  const _newItem = {id: genId(), type, qty, price, amount, buyer, payKind: effKind, paidAmount: paidNow};
+  const _newItem = {id: genId(), type, qty, price, amount, buyer: buyer||null, payKind: effKind, paidAmount: paidNow};
   m.items.push(_newItem);
   let ok = await saveDB();
   if(ok){ journalAppend({kind:"purchase", date:key, ownerId:m.id, ownerName:m.name, item:_newItem}); }
 
   // سجلات السداد والدين المرافقة لعملية الشراء
   const recordBase = { merchantName: m.name, itemType: type, qty, price, itemAmount: amount,
-                       sourceDate: key, sourceItemId: _newItem.id, partner: buyer };
+                       sourceDate: key, sourceItemId: _newItem.id, partner: buyer||null };
   if(ok && paidNow > 0){
     ok = await addPurchasePaymentRecord({...recordBase, paymentKind: effKind==="full"?"full":"partial", amountPaid: paidNow, date: key});
   }
@@ -2753,6 +3004,8 @@ async function addPurchase(){
   document.getElementById("in-price").value="";
   document.getElementById("amt-display").textContent="0 ₪";
   document.getElementById("in-pay-kind").value="";
+  document.getElementById("in-buyer").value="";
+  document.getElementById("purchase-buyer-field").style.display="none";
   document.getElementById("in-partial-amount").value="";
   document.getElementById("purchase-partial-field").style.display="none";
   document.getElementById("purchase-partial-hint").textContent="";
@@ -2804,17 +3057,20 @@ function onGrillToggle(){
   calcSaleAmount();
 }
 function calcSaleAmount(){
-  const qty = parseFloat(document.getElementById("sale-qty").value)||0;
-  const price = parseFloat(document.getElementById("sale-price").value)||0;
-  let amt = qty*price;
-  if(document.getElementById("sale-grill-check").checked){
-    const gq = parseFloat(document.getElementById("sale-grill-qty").value)||0;
-    const gp = parseFloat(document.getElementById("sale-grill-price").value)||0;
-    amt += gq*gp;
+  const f = readCurrentSaleItemFields();
+  const curAmt = (f.qty>0 && f.price>0) ? f.qty*f.price + (f.grillEnabled ? f.grillQty*f.grillPrice : 0) : 0;
+  const total = Math.round((saleCartTotal() + curAmt)*1000)/1000;
+  document.getElementById("sale-amt-display").textContent = fmtMoney(total);
+  const partialField = document.getElementById("partial-payment-field");
+  if(partialField && partialField.style.display!=="none"){
+    const val = parseFloat(document.getElementById("sale-partial-amount").value)||0;
+    const hint = document.getElementById("partial-remaining-hint");
+    if(val>0 && total>0){
+      if(val>=total){ hint.textContent = "المبلغ يغطي الكل — اختر «سداد» بدلًا من الجزئي"; hint.classList.add("low"); }
+      else { hint.textContent = `الباقي دينًا على الزبون: ${fmtMoney(Math.round((total-val)*1000)/1000)}`; hint.classList.remove("low"); }
+    } else { hint.textContent=""; hint.classList.remove("low"); }
   }
-  document.getElementById("sale-amt-display").textContent = fmtMoney(amt);
-  updatePartialHint(amt);
-  return amt;
+  return total;
 }
 function onPaymentTypeChange(){
   const val = document.getElementById("sale-payment-type").value;
@@ -2869,32 +3125,95 @@ function renderTodayCustomerItems(name){
     </div>`).join("");
   box.style.display = "block";
 }
-async function addSale(){
-  const customer = document.getElementById("in-customer").value.trim();
+/* سلة أصناف عملية البيع الواحدة: عدة أصناف لنفس الزبون تُسدَّد مرة واحدة */
+let SALE_CART = [];
+function cartQtyForType(type){
+  return SALE_CART.filter(i=>i.type===type).reduce((s,i)=>s+i.qty,0);
+}
+function readCurrentSaleItemFields(){
   const type = document.getElementById("sale-type").value;
   const qty = parseFloat(document.getElementById("sale-qty").value)||0;
   const price = parseFloat(document.getElementById("sale-price").value)||0;
   const grillEnabled = document.getElementById("sale-grill-check").checked;
   const grillQty = grillEnabled ? (parseFloat(document.getElementById("sale-grill-qty").value)||0) : 0;
   const grillPrice = grillEnabled ? (parseFloat(document.getElementById("sale-grill-price").value)||0) : 0;
+  return {type, qty, price, grillEnabled, grillQty, grillPrice};
+}
+function clearCurrentSaleItemFields(){
+  document.getElementById("sale-type").value="";
+  document.getElementById("sale-qty").value="";
+  document.getElementById("sale-price").value="";
+  document.getElementById("sale-grill-check").checked=false;
+  document.getElementById("sale-grill-qty").value="";
+  document.getElementById("sale-grill-price").value="";
+  document.getElementById("grill-fields").style.display="none";
+  document.getElementById("sale-stock-hint").textContent="";
+}
+function validateSaleItem(f, extraQtySameType){
+  if(!f.type){ showToast("الرجاء اختيار الصنف"); return false; }
+  if(f.qty<=0 || f.price<=0){ showToast("الرجاء إدخال الكمية والسعر"); return false; }
+  if(f.grillEnabled && (f.grillQty<=0 || f.grillPrice<=0)){ showToast("الرجاء إدخال كمية وسعر الشوي"); return false; }
+  const available = computeAvailableStock(f.type) - (extraQtySameType||0);
+  if(f.qty > available + 1e-9){
+    showToast(`⚠️ متبقي فقط ${fmtQty(Math.max(available,0))} كيلو من "${f.type}"`);
+    return false;
+  }
+  return true;
+}
+function addSaleItemToCart(){
+  const f = readCurrentSaleItemFields();
+  if(!validateSaleItem(f, cartQtyForType(f.type))) return;
+  const grillAmount = f.grillQty*f.grillPrice;
+  SALE_CART.push({...f, grillAmount, amount: f.qty*f.price + grillAmount});
+  clearCurrentSaleItemFields();
+  renderSaleCart();
+  calcSaleAmount();
+  showToast(`أُضيف "${f.type}" للعملية — أكمل صنفًا آخر أو اختر نوع السداد للإجمالي`);
+}
+function removeSaleCartItem(idx){
+  SALE_CART.splice(idx,1);
+  renderSaleCart();
+  calcSaleAmount();
+}
+function renderSaleCart(){
+  const box = document.getElementById("sale-cart-box");
+  const list = document.getElementById("sale-cart-list");
+  if(SALE_CART.length===0){ box.style.display="none"; list.innerHTML=""; return; }
+  box.style.display="block";
+  list.innerHTML = SALE_CART.map((i,idx)=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px dashed rgba(0,0,0,.12);">
+      <span style="font-size:13px;">${i.type}${i.grillEnabled?" 🔥":""} — ${fmtQty(i.qty)} × ${fmtMoney(i.price)}${i.grillEnabled?` + شوي ${fmtQty(i.grillQty)}×${fmtMoney(i.grillPrice)}`:""}</span>
+      <span style="display:flex;align-items:center;gap:8px;">
+        <b>${fmtMoney(i.amount)}</b>
+        <button class="icon-btn del" title="إزالة" onclick="removeSaleCartItem(${idx})">🗑</button>
+      </span>
+    </div>`).join("");
+}
+function saleCartTotal(){
+  return Math.round(SALE_CART.reduce((s,i)=>s+i.amount,0)*1000)/1000;
+}
+
+async function addSale(){
+  const customer = document.getElementById("in-customer").value.trim();
   const paymentType = document.getElementById("sale-payment-type").value; // 'full' | 'partial' | 'debt'
 
   if(!customer){ showToast("الرجاء إدخال اسم الزبون"); return; }
-  if(!type){ showToast("الرجاء اختيار الصنف"); return; }
-  if(qty<=0 || price<=0){ showToast("الرجاء إدخال الكمية والسعر"); return; }
-  if(grillEnabled && (grillQty<=0 || grillPrice<=0)){ showToast("الرجاء إدخال كمية وسعر الشوي"); return; }
+
+  // أصناف العملية = ما في السلة + الصنف المُدخل حاليًا (إن وُجد)
+  const items = SALE_CART.map(i=>({...i}));
+  const cur = readCurrentSaleItemFields();
+  const curFilled = cur.type || cur.qty>0 || cur.price>0;
+  if(curFilled){
+    if(!validateSaleItem(cur, cartQtyForType(cur.type))) return;
+    const grillAmount = cur.grillQty*cur.grillPrice;
+    items.push({...cur, grillAmount, amount: cur.qty*cur.price + grillAmount});
+  }
+  if(items.length===0){ showToast("الرجاء إضافة صنف واحد على الأقل"); return; }
   if(!paymentType){ showToast("الرجاء اختيار نوع السداد"); return; }
   const paidTo = document.getElementById("sale-paid-to").value;
   if((paymentType==="full"||paymentType==="partial") && !paidTo){ showToast("الرجاء اختيار المدفوع له (الشريك)"); return; }
 
-  const available = computeAvailableStock(type);
-  if(qty > available + 1e-9){
-    showToast(`⚠️ متبقي فقط ${fmtQty(available)} كيلو من "${type}"`);
-    return;
-  }
-
-  const grillAmount = grillQty*grillPrice;
-  const amount = qty*price + grillAmount;
+  const amount = Math.round(items.reduce((s,i)=>s+i.amount,0)*1000)/1000; // الإجمالي الكلي للعملية
 
   let partialAmount = 0;
   if(paymentType==="partial"){
@@ -2914,29 +3233,42 @@ async function addSale(){
   }
   if(!SALES_DB[key].createdAt) SALES_DB[key].createdAt = Date.now();
   const c = getOrCreateCustomer(SALES_DB[key], customer);
-  const itemId = genId();
   const debtAmount = paymentType==="debt" ? amount
                     : paymentType==="partial" ? Math.round((amount-partialAmount)*1000)/1000
                     : 0;
-  const paidAmount = paymentType==="full" ? amount
+  const totalPaid = paymentType==="full" ? amount
                     : paymentType==="partial" ? partialAmount
                     : 0;
-  c.items.push({
-    id: itemId, type, qty, price, amount,
-    grill: grillEnabled ? {enabled:true, qty:grillQty, price:grillPrice, amount:grillAmount} : {enabled:false, qty:0, price:0, amount:0},
-    payment: {kind: paymentType, paidAmount, debtAmount}
+
+  // إدراج كل الأصناف — السداد يُوزَّع على الأصناف بالتناسب لكن يُسجَّل كعملية واحدة
+  const newItems = [];
+  items.forEach(i=>{
+    const ratio = amount>0 ? i.amount/amount : 0;
+    const it = {
+      id: genId(), type: i.type, qty: i.qty, price: i.price, amount: i.amount,
+      grill: i.grillEnabled ? {enabled:true, qty:i.grillQty, price:i.grillPrice, amount:i.grillAmount} : {enabled:false, qty:0, price:0, amount:0},
+      payment: {kind: paymentType, paidAmount: Math.round(totalPaid*ratio*1000)/1000, debtAmount: Math.round(debtAmount*ratio*1000)/1000}
+    };
+    c.items.push(it);
+    newItems.push(it);
   });
   let ok = await saveSalesDB();
-  if(ok){
-    const _saleItem = c.items[c.items.length-1];
-    journalAppend({kind:"sale", date:key, ownerId:c.id, ownerName:c.name, item:_saleItem});
-  }
+  if(ok){ newItems.forEach(it=> journalAppend({kind:"sale", date:key, ownerId:c.id, ownerName:c.name, item:it})); }
 
-  // إرسال تفاصيل العملية إلى صفحة السداد و/أو صفحة الدين حسب نوع السداد المختار
+  // عملية سداد/دين واحدة للإجمالي الكلي (عدة أصناف = سجل واحد بتفاصيل مجمّعة)
+  const multi = items.length>1;
+  const firstIt = newItems[0];
+  const anyGrill = items.some(i=>i.grillEnabled);
+  const detailsText = multi ? items.map(i=>`${i.type}${i.grillEnabled?" 🔥":""} ${fmtQty(i.qty)}×${fmtMoney(i.price)}`).join(" + ") : null;
   const recordBase = {
-    customerName: c.name, itemType: type, qty, price,
-    grillEnabled, grillQty, grillPrice, itemAmount: amount,
-    sourceSaleDate: key, sourceItemId: itemId, partner: paidTo||null
+    customerName: c.name,
+    itemType: multi ? items.map(i=>i.type).join(" + ") : firstIt.type,
+    qty: multi ? items.reduce((s,i)=>s+i.qty,0) : firstIt.qty,
+    price: multi ? 0 : firstIt.price,
+    grillEnabled: multi ? false : firstIt.grill.enabled,
+    grillQty: multi ? 0 : firstIt.grill.qty, grillPrice: multi ? 0 : firstIt.grill.price,
+    itemAmount: amount, detailsText,
+    sourceSaleDate: key, sourceItemId: firstIt.id, partner: paidTo||null
   };
   if(ok && paymentType==="full"){
     ok = await addPaymentRecord({...recordBase, paymentKind:"full", amountPaid:amount, date:key});
@@ -2954,6 +3286,8 @@ async function addSale(){
     return;
   }
 
+  SALE_CART = [];
+  renderSaleCart();
   // clear item fields only — نبقي اسم الزبون لتسهيل إضافة صنف آخر له
   document.getElementById("sale-type").value="";
   document.getElementById("sale-qty").value="";
@@ -2988,7 +3322,7 @@ async function addPaymentRecord(data){
     qty: data.qty, price: data.price, grillEnabled: !!data.grillEnabled,
     grillQty: data.grillQty||0, grillPrice: data.grillPrice||0,
     itemAmount: data.itemAmount, paymentKind: data.paymentKind, amountPaid: data.amountPaid,
-    partner: data.partner||null,
+    partner: data.partner||null, detailsText: data.detailsText||null,
     sourceSaleDate: data.sourceSaleDate||null, sourceItemId: data.sourceItemId||null,
     debtId: data.debtId||null
   };
@@ -3004,6 +3338,7 @@ async function addDebtRecord(data){
     grillQty: data.grillQty||0, grillPrice: data.grillPrice||0,
     itemAmount: data.itemAmount, debtKind: data.debtKind, remainingAmount: data.remainingAmount,
     createdDate: data.createdDate, lastUpdateDate: data.createdDate,
+    detailsText: data.detailsText||null,
     sourceSaleDate: data.sourceSaleDate||null, sourceItemId: data.sourceItemId||null,
     settled: false, history: []
   };
@@ -3225,7 +3560,7 @@ function renderPaymentsTable(list, tbodyId, emptyId){
     <tr>
       <td>${dayNameOf(p.date)}<div class="cell-date-day">${formatDateArabic(p.date)}</div></td>
       <td>${p.customerName}</td>
-      <td>${p.itemType}${p.grillEnabled ? ' 🔥' : ''}<div class="cell-sub">${fmtQty(p.qty)} × ${fmtMoney(p.price)}${p.grillEnabled ? ` + شوي ${fmtQty(p.grillQty)}×${fmtMoney(p.grillPrice)}` : ''}</div></td>
+      <td>${p.itemType}${p.grillEnabled ? ' 🔥' : ''}<div class="cell-sub">${p.detailsText ? p.detailsText : `${fmtQty(p.qty)} × ${fmtMoney(p.price)}${p.grillEnabled ? ` + شوي ${fmtQty(p.grillQty)}×${fmtMoney(p.grillPrice)}` : ''}`}</div></td>
       <td class="num">${fmtMoney(p.itemAmount)}</td>
       <td class="num" style="color:var(--success);">${fmtMoney(p.amountPaid)}</td>
       <td>${p.partner||"—"}</td>
@@ -3265,7 +3600,7 @@ function renderDebtCardHtml(d, kindClass){
       <div class="debt-card-top">
         <div>
           <div class="debt-customer">${d.customerName}</div>
-          <div class="debt-item">${d.itemType}${d.grillEnabled ? ' 🔥' : ''} — ${fmtQty(d.qty)} × ${fmtMoney(d.price)}${d.grillEnabled ? ` + شوي ${fmtQty(d.grillQty)}×${fmtMoney(d.grillPrice)}` : ''}</div>
+          <div class="debt-item">${d.detailsText ? d.detailsText : `${d.itemType}${d.grillEnabled ? ' 🔥' : ''} — ${fmtQty(d.qty)} × ${fmtMoney(d.price)}${d.grillEnabled ? ` + شوي ${fmtQty(d.grillQty)}×${fmtMoney(d.grillPrice)}` : ''}`}</div>
           <div class="debt-date">${dateLine}</div>
           <span class="debt-kind-pill ${kindClass}">${kindLabel}</span>
         </div>
@@ -3344,7 +3679,7 @@ async function confirmDebtSettle(id){
     customerName: d.customerName, itemType: d.itemType, qty: d.qty, price: d.price,
     grillEnabled: d.grillEnabled, grillQty: d.grillQty, grillPrice: d.grillPrice,
     itemAmount: d.itemAmount, sourceSaleDate: d.sourceSaleDate, sourceItemId: d.sourceItemId,
-    partner: settlePartner
+    partner: settlePartner, detailsText: d.detailsText||null
   };
 
   if(type==="full"){
@@ -4092,16 +4427,19 @@ function renderInventoryDetailTable(){
     let actionCell;
     if(remaining<=0.0001){
       actionCell = `<span class="status-pill matched">✅ مطابق</span>`;
-    } else if(res){
+    } else if(res && Math.abs((res.remaining||0) - remaining) <= 0.0001){
+      // الإجراء السابق ما زال مطابقًا للمتبقي الحالي
       actionCell = res.status==='rolled'
         ? `<span class="status-pill rolled">↪️ رُحّل ${fmtQty(res.remaining)} ك لليوم التالي</span>`
         : `<span class="status-pill destroyed">🗑️ أُتلف ${fmtQty(res.remaining)} ك</span>`;
     } else {
+      // تغيّر المتبقي بعد الإجراء السابق (أو لا إجراء): تعود الأزرار طبيعية لترحيل/إتلاف الكمية الجديدة
+      const prevNote = res ? `<div style="font-size:11px;color:var(--ink-soft);margin-top:3px;">إجراء سابق: ${res.status==='rolled'?'رُحّل':'أُتلف'} ${fmtQty(res.remaining)} ك</div>` : "";
       actionCell = `
         <div class="inv-row-actions">
           <button class="btn-mini roll" onclick="resolveInventory('${date}','${safeType}','rolled')">↪️ ترحيل</button>
           <button class="btn-mini destroy" onclick="resolveInventory('${date}','${safeType}','destroyed')">🗑️ إتلاف</button>
-        </div>`;
+        </div>${prevNote}`;
     }
 
     const unit = dayUnitPrice(date, type);
@@ -4211,6 +4549,7 @@ async function reloadAllFromLocal(){
   await loadPurchasePaymentsDB();
   await loadPurchaseDebtsDB();
   await loadExpensesDB();
+  await loadProfitsDB();
   await loadTombstonesDB();
   refreshAllViews();
   scheduleHeal(); // فحص تلقائي بعد كل جلب من السحابة
@@ -4235,6 +4574,7 @@ async function reloadAllFromLocal(){
   await loadPurchasePaymentsDB();
   await loadPurchaseDebtsDB();
   await loadExpensesDB();
+  await loadProfitsDB();
   await loadTombstonesDB();
 
   // استرجاع قائمة "بانتظار المزامنة" من القرص: لو أُغلق المتصفح أثناء انقطاع
