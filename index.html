@@ -541,16 +541,47 @@
         <div class="stamp-row" style="margin-top:20px;">
           <button class="stamp-btn" onclick="goTo('payments')">
             <span class="icon">✅</span>
-            <span class="label">صفحة السداد</span>
-            <span class="hint">أرشيف السداد الكامل والجزئي بالتاريخ</span>
+            <span class="label">سداد المبيعات</span>
+            <span class="hint">أرشيف سداد الزبائن الكامل والجزئي</span>
           </button>
           <button class="stamp-btn" onclick="goTo('debts')">
             <span class="icon">🧾</span>
-            <span class="label">صفحة الدين</span>
+            <span class="label">ديون المبيعات</span>
             <span class="hint">متابعة ديون الزبائن وتسديدها</span>
           </button>
         </div>
-        <div class="more-note">سيتم إضافة صفحات أخرى هنا لاحقًا مع تطور المشروع</div>
+        <div class="stamp-row" style="margin-top:20px;">
+          <button class="stamp-btn" onclick="goTo('purchase-payments')">
+            <span class="icon">🧾</span>
+            <span class="label">سداد المشتريات</span>
+            <span class="hint">كل المبالغ المسدَّدة للتجار بالتفصيل</span>
+          </button>
+          <button class="stamp-btn" onclick="goTo('purchase-debts')">
+            <span class="icon">📕</span>
+            <span class="label">ديون المشتريات</span>
+            <span class="hint">ديون التجار الكاملة والجزئية وتسديدها</span>
+          </button>
+        </div>
+        <div class="stamp-row" style="margin-top:20px;">
+          <button class="stamp-btn" onclick="goTo('expenses')">
+            <span class="icon">💸</span>
+            <span class="label">المصاريف العامة</span>
+            <span class="hint">مصاريف اليوم (عمال، كهرباء، أجرة...)</span>
+          </button>
+          <button class="stamp-btn" onclick="goTo('partners')">
+            <span class="icon">👥</span>
+            <span class="label">صفحة الشركاء</span>
+            <span class="hint">عمليات كل شريك ورصيده بالتفصيل</span>
+          </button>
+        </div>
+        <div class="stamp-row" style="margin-top:20px;">
+          <button class="stamp-btn" onclick="goTo('company')">
+            <span class="icon">🏦</span>
+            <span class="label">حساب الشركة</span>
+            <span class="hint">صافي الربح اليومي وتوزيعه على الشركاء</span>
+          </button>
+        </div>
+        <div class="more-note">الدرش — نظام متكامل للمشتريات والمبيعات والشركاء والأرباح</div>
       </div>
     </div>
   </section>
@@ -600,6 +631,27 @@
         <div class="amount-box">
           <span class="amt-label">المبلغ</span>
           <span class="amt-value" id="amt-display">0 ₪</span>
+        </div>
+
+        <div class="field">
+          <label>المشتري (الشريك)</label>
+          <select id="in-buyer"><option value="">اختر الشريك المشتري</option></select>
+        </div>
+
+        <div class="field">
+          <label>نوع الشراء</label>
+          <select id="in-pay-kind" onchange="onPurchasePayKindChange()">
+            <option value="">اختر نوع الشراء</option>
+            <option value="full">✅ سداد كامل</option>
+            <option value="partial">🟡 سداد جزئي</option>
+            <option value="debt">🔴 دين (بدون دفع الآن)</option>
+          </select>
+        </div>
+
+        <div class="field" id="purchase-partial-field" style="display:none;">
+          <label>مبلغ السداد الجزئي</label>
+          <input type="number" id="in-partial-amount" placeholder="0" min="0" step="0.1" oninput="onPurchasePartialInput()">
+          <div class="stock-hint" id="purchase-partial-hint"></div>
         </div>
 
         <button class="btn btn-primary btn-block" onclick="addPurchase()">➕ إضافة الصنف لهذا التاجر</button>
@@ -734,6 +786,11 @@
           <div class="stock-hint" id="partial-remaining-hint"></div>
         </div>
 
+        <div class="field" id="sale-paid-to-field" style="display:none;">
+          <label>المدفوع له (الشريك)</label>
+          <select id="sale-paid-to"><option value="">اختر الشريك المستلم</option></select>
+        </div>
+
         <button class="btn btn-primary btn-block" onclick="addSale()">➕ إضافة الصنف لهذا الزبون</button>
       </div>
     </div>
@@ -792,7 +849,7 @@
     <div class="page">
       <div class="page-header">
         <button class="back-btn" onclick="goTo('home')">→</button>
-        <h2 class="page-title">صفحة السداد<small>كل عمليات السداد الكامل والجزئي موثّقة بالتاريخ</small></h2>
+        <h2 class="page-title">سداد المبيعات<small>كل عمليات سداد الزبائن الكاملة والجزئية موثّقة بالتاريخ</small></h2>
         <button class="header-danger-btn" onclick="askBulkAction('emptyPayments')">🗑️<span class="hdb-label">تفريغ الصفحة</span></button>
       </div>
 
@@ -812,6 +869,7 @@
                 <th>تفاصيل العملية</th>
                 <th>المبلغ الكلي</th>
                 <th>المدفوع</th>
+                <th>المدفوع له</th>
               </tr>
             </thead>
             <tbody id="payments-full-tbody"></tbody>
@@ -834,6 +892,7 @@
                 <th>تفاصيل العملية</th>
                 <th>المبلغ الكلي</th>
                 <th>المدفوع</th>
+                <th>المدفوع له</th>
               </tr>
             </thead>
             <tbody id="payments-partial-tbody"></tbody>
@@ -852,7 +911,7 @@
     <div class="page">
       <div class="page-header">
         <button class="back-btn" onclick="goTo('home')">→</button>
-        <h2 class="page-title">صفحة الدين<small>ديون الزبائن الكاملة والجزئية، مع إمكانية السداد من هنا</small></h2>
+        <h2 class="page-title">ديون المبيعات<small>ديون الزبائن الكاملة والجزئية، مع إمكانية السداد من هنا</small></h2>
         <button class="header-danger-btn" onclick="askBulkAction('emptyDebts')">🗑️<span class="hdb-label">تفريغ الصفحة</span></button>
       </div>
 
@@ -906,6 +965,7 @@
                 <th>مُشترى</th>
                 <th>مباع</th>
                 <th>المتبقي</th>
+                <th>قيمة المتبقي</th>
                 <th>الإجراء</th>
               </tr>
             </thead>
@@ -916,6 +976,226 @@
       <div id="inventory-detail-empty" class="empty-state" style="display:none;">
         <div class="ico">📋</div>
         <div>لا توجد حركة مشتريات أو مبيعات لهذا اليوم</div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ================= PURCHASE PAYMENTS (سداد المشتريات) ================= -->
+  <section id="view-purchase-payments" class="view">
+    <div class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="goTo('home')">→</button>
+        <h2 class="page-title">سداد المشتريات<small>كل المبالغ المسدَّدة للتجار: كاملة وجزئية، مع الشريك المسدِّد</small></h2>
+      </div>
+
+      <div class="grand-total">
+        <span class="gt-label">إجمالي المبالغ المسدَّدة للتجار</span>
+        <span class="gt-value" id="ppayments-grand-total">0 ₪</span>
+      </div>
+
+      <h3 class="sub-title">✅ قسم السداد الكامل</h3>
+      <div class="card" style="padding:0;overflow:hidden;margin-bottom:10px;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>التاريخ</th>
+                <th>التاجر</th>
+                <th>تفاصيل العملية</th>
+                <th>المبلغ الكلي</th>
+                <th>المدفوع</th>
+                <th>الشريك المسدِّد</th>
+              </tr>
+            </thead>
+            <tbody id="ppayments-full-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="ppayments-full-empty" class="empty-state" style="display:none;">
+        <div class="ico">✅</div>
+        <div>لا يوجد سداد كامل للتجار بعد</div>
+      </div>
+
+      <h3 class="sub-title">🟡 قسم السداد الجزئي</h3>
+      <div class="card" style="padding:0;overflow:hidden;margin-bottom:10px;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>التاريخ</th>
+                <th>التاجر</th>
+                <th>تفاصيل العملية</th>
+                <th>المبلغ الكلي</th>
+                <th>المدفوع</th>
+                <th>الشريك المسدِّد</th>
+              </tr>
+            </thead>
+            <tbody id="ppayments-partial-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="ppayments-partial-empty" class="empty-state" style="display:none;">
+        <div class="ico">🟡</div>
+        <div>لا يوجد سداد جزئي للتجار بعد</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= PURCHASE DEBTS (ديون المشتريات) ================= -->
+  <section id="view-purchase-debts" class="view">
+    <div class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="goTo('home')">→</button>
+        <h2 class="page-title">ديون المشتريات<small>ديوننا للتجار: كاملة وجزئية، مع إمكانية السداد من هنا</small></h2>
+      </div>
+
+      <div class="grand-total">
+        <span class="gt-label">إجمالي ديوننا المتبقية للتجار</span>
+        <span class="gt-value" id="pdebts-grand-total">0 ₪</span>
+      </div>
+
+      <h3 class="sub-title">🔴 قائمة الدين (بدون أي سداد)</h3>
+      <div id="pdebts-full-list"></div>
+      <div id="pdebts-full-empty" class="empty-state" style="display:none;">
+        <div class="ico">🔴</div>
+        <div>لا توجد ديون شراء كاملة حاليًا</div>
+      </div>
+
+      <h3 class="sub-title">🟡 قائمة السداد الجزئي (مبلغ متبقٍ)</h3>
+      <div id="pdebts-partial-list"></div>
+      <div id="pdebts-partial-empty" class="empty-state" style="display:none;">
+        <div class="ico">🟡</div>
+        <div>لا توجد ديون شراء جزئية متبقية حاليًا</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= EXPENSES (المصاريف العامة) ================= -->
+  <section id="view-expenses" class="view">
+    <div class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="goTo('home')">→</button>
+        <h2 class="page-title">المصاريف العامة<small id="expenses-date-line"></small></h2>
+      </div>
+
+      <button class="grand-total" style="width:100%;border:none;cursor:default;text-align:inherit;" id="expenses-day-btn">
+        <span class="gt-label" id="expenses-day-label">إجمالي مصاريف اليوم</span>
+        <span class="gt-value" id="expenses-day-total">0 ₪</span>
+      </button>
+
+      <div class="card">
+        <div id="expense-rows"></div>
+        <button class="btn btn-ghost btn-block" onclick="addExpenseRow()">➕ إضافة مصروف آخر</button>
+        <button class="btn btn-primary btn-block" style="margin-top:10px;" onclick="saveExpenses()">💾 حفظ مصاريف اليوم</button>
+      </div>
+
+      <h3 class="sub-title">🧾 مصاريف اليوم المحفوظة</h3>
+      <div id="expenses-today-list"></div>
+
+      <h3 class="sub-title">📚 أرشيف المصاريف حسب الأيام</h3>
+      <div id="expenses-archive-list"></div>
+    </div>
+  </section>
+
+  <!-- ================= PARTNERS (الشركاء) ================= -->
+  <section id="view-partners" class="view">
+    <div class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="goTo('home')">→</button>
+        <h2 class="page-title">صفحة الشركاء<small>اضغط على اسم الشريك لعرض كل عملياته ورصيده</small></h2>
+      </div>
+      <div id="partners-list"></div>
+    </div>
+  </section>
+
+  <!-- ================= PARTNER DETAIL ================= -->
+  <section id="view-partner-detail" class="view">
+    <div class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="goTo('partners')">→</button>
+        <h2 class="page-title" id="partner-detail-title">تفاصيل الشريك</h2>
+      </div>
+
+      <div class="grand-total">
+        <span class="gt-label">رصيد الشريك (+ له على الشركة / − عليه للشركة)</span>
+        <span class="gt-value" id="partner-balance">0 ₪</span>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>التاريخ</th>
+                <th>العملية</th>
+                <th>التفاصيل</th>
+                <th>المبلغ</th>
+              </tr>
+            </thead>
+            <tbody id="partner-ops-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="partner-ops-empty" class="empty-state" style="display:none;">
+        <div class="ico">👤</div>
+        <div>لا توجد عمليات مسجلة لهذا الشريك بعد</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= COMPANY (حساب الشركة) ================= -->
+  <section id="view-company" class="view">
+    <div class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="goTo('home')">→</button>
+        <h2 class="page-title">حساب الشركة<small>اضغط على أي يوم لعرض التفاصيل وتوزيع الربح</small></h2>
+      </div>
+      <div id="company-days-list"></div>
+    </div>
+  </section>
+
+  <!-- ================= COMPANY DAY DETAIL ================= -->
+  <section id="view-company-detail" class="view">
+    <div class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="goTo('company')">→</button>
+        <h2 class="page-title" id="company-detail-title">حساب اليوم</h2>
+      </div>
+
+      <div class="grand-total">
+        <span class="gt-label">صافي الربح لهذا اليوم</span>
+        <span class="gt-value" id="company-net-profit">0 ₪</span>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div class="table-wrap">
+          <table>
+            <tbody id="company-breakdown-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <h3 class="sub-title">👥 احتساب صافي الربح لكل شريك</h3>
+      <div class="card">
+        <p style="margin:0 0 10px;font-size:13px;color:var(--ink-soft);font-weight:600;">اختر الشركاء المشاركين في ربح هذا اليوم — يُقسَّم صافي الربح عليهم بالتساوي، ويُضاف لكل شريك رصيده:</p>
+        <div id="company-partner-checks"></div>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;" id="company-split-card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>الشريك</th>
+                <th>نصيبه من الربح</th>
+                <th>رصيد الشريك</th>
+                <th>قيمة الربح النهائي</th>
+              </tr>
+            </thead>
+            <tbody id="company-split-tbody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </section>
@@ -1336,7 +1616,7 @@ async function healFromJournal(){
     const custTomb = (TOMBSTONES_DB.customers)||{};
     const payTomb = (TOMBSTONES_DB.payments)||{};
     const debtTomb = (TOMBSTONES_DB.debts)||{};
-    let nPur=0, nSale=0, nPay=0, nDebt=0;
+    let nPur=0, nSale=0, nPay=0, nDebt=0, nPPay=0, nPDebt=0, nExp=0;
 
     for(const en of j.entries){
       try{
@@ -1380,16 +1660,38 @@ async function healFromJournal(){
           DEBTS_DB[en.rec.id] = en.rec;
           nDebt++;
         }
+        else if(en.kind==="ppayment"){
+          if(!en.rec || (TOMBSTONES_DB.purchasePayments||{})[en.rec.id]) continue;
+          if(PURCHASE_PAYMENTS_DB[en.rec.id]) continue;
+          PURCHASE_PAYMENTS_DB[en.rec.id] = en.rec;
+          nPPay++;
+        }
+        else if(en.kind==="pdebt"){
+          if(!en.rec || (TOMBSTONES_DB.purchaseDebts||{})[en.rec.id]) continue;
+          if(PURCHASE_DEBTS_DB[en.rec.id]) continue;
+          PURCHASE_DEBTS_DB[en.rec.id] = en.rec;
+          nPDebt++;
+        }
+        else if(en.kind==="expense"){
+          if(!en.item || (TOMBSTONES_DB.expensesItems||{})[en.item.id]) continue;
+          if(EXPENSES_DB[en.date] && (EXPENSES_DB[en.date].items||[]).some(it=>it.id===en.item.id)) continue;
+          if(!EXPENSES_DB[en.date]) EXPENSES_DB[en.date] = { day: dayNameOf(en.date), items: [], createdAt: en.t };
+          EXPENSES_DB[en.date].items.push(en.item);
+          nExp++;
+        }
       }catch(e){ console.warn("[سجل الأمان] تعذّرت معالجة قيد", e); }
     }
 
-    const total = nPur+nSale+nPay+nDebt;
+    const total = nPur+nSale+nPay+nDebt+nPPay+nPDebt+nExp;
     if(total>0){
-      console.warn("[سجل الأمان] استعادة إدخالات مفقودة:", {مشتريات:nPur, مبيعات:nSale, سداد:nPay, دين:nDebt});
+      console.warn("[سجل الأمان] استعادة إدخالات مفقودة:", {مشتريات:nPur, مبيعات:nSale, سداد:nPay, دين:nDebt, سداد_مشتريات:nPPay, ديون_مشتريات:nPDebt, مصاريف:nExp});
       if(nPur) await saveDB();
       if(nSale) await saveSalesDB();
       if(nPay) await savePaymentsDB();
       if(nDebt) await saveDebtsDB();
+      if(nPPay) await savePurchasePaymentsDB();
+      if(nPDebt) await savePurchaseDebtsDB();
+      if(nExp) await saveExpensesDB();
       refreshAllViews();
       showToast(`🛡️ سجل الأمان: تمت استعادة ${total} إدخال كان مفقودًا وإعادة مزامنته`, 5200);
     }
@@ -1416,9 +1718,16 @@ const SALES_STORAGE_KEY = "sales_archive_v1";
 const RESOLUTIONS_STORAGE_KEY = "inventory_resolutions_v1";
 const PAYMENTS_STORAGE_KEY = "payments_archive_v1";
 const DEBTS_STORAGE_KEY = "debts_archive_v1";
+const PURCHASE_PAYMENTS_STORAGE_KEY = "purchase_payments_archive_v1";
+const PURCHASE_DEBTS_STORAGE_KEY = "purchase_debts_archive_v1";
+const EXPENSES_STORAGE_KEY = "expenses_archive_v1";
 const TOMBSTONES_STORAGE_KEY = "tombstones_v1"; // سجل العناصر المحذوفة، يمنع عودتها بالغلط بعد دمج بيانات جهازين
+
+/* الشركاء (المشترون) — سبعة أسماء ثابتة، و"نقدي" لا يدخل في قسمة الأرباح */
+const PARTNERS = ["أبو صلاح","محمد","أمجد","أحمد بكر","بسام","أبو أحمد","نقدي"];
+const PROFIT_PARTNERS = ["أبو صلاح","محمد","أمجد","أحمد بكر","بسام","أبو أحمد"];
 const SHARED = true; // shared ledger so the whole team sees the same purchases
-const ALL_SYNC_KEYS = [STORAGE_KEY, SALES_STORAGE_KEY, RESOLUTIONS_STORAGE_KEY, PAYMENTS_STORAGE_KEY, DEBTS_STORAGE_KEY, TOMBSTONES_STORAGE_KEY];
+const ALL_SYNC_KEYS = [STORAGE_KEY, SALES_STORAGE_KEY, RESOLUTIONS_STORAGE_KEY, PAYMENTS_STORAGE_KEY, DEBTS_STORAGE_KEY, PURCHASE_PAYMENTS_STORAGE_KEY, PURCHASE_DEBTS_STORAGE_KEY, EXPENSES_STORAGE_KEY, TOMBSTONES_STORAGE_KEY];
 
 let DB = {}; // { "2026-08-20": { day:"الخميس", merchants:[{id,name,items:[{id,type,qty,price,amount}]}] } }
 let currentDetailDate = null;
@@ -1442,7 +1751,10 @@ let DEBTS_DB = {}; // { id: {id,customerName,itemType,qty,price,grillEnabled,gri
 
 // سجل "شواهد" العناصر المحذوفة (تاجر/زبون/صنف) — يُستخدم فقط عند دمج نسخة هذا
 // الجهاز مع نسخة جهاز آخر بعد انقطاع، كي لا يعود عنصر حذفته بالغلط من جهاز آخر
-let TOMBSTONES_DB = { merchants:{}, customers:{}, items:{}, debts:{}, payments:{}, datesPurchases:{}, datesSales:{}, resolutions:{} };
+let PURCHASE_PAYMENTS_DB = {};
+let PURCHASE_DEBTS_DB = {};
+let EXPENSES_DB = {};
+let TOMBSTONES_DB = { merchants:{}, customers:{}, items:{}, debts:{}, payments:{}, purchasePayments:{}, purchaseDebts:{}, expensesItems:{}, datesPurchases:{}, datesSales:{}, datesExpenses:{}, resolutions:{} };
 // datesPurchases/datesSales: تُسجَّل فيها تواريخ الأيام التي حُذفت بالكامل عبر "إعادة تعيين الأرشيف"
 // حتى لا تعود بالغلط عند دمج بيانات جهاز آخر لم يستلم الحذف بعد.
 // resolutions: تُسجَّل فيها مفاتيح "تاريخ|صنف" التي أُلغي قرار ترحيلها/إتلافها عبر "تفريغ صفحة الجرد".
@@ -1455,6 +1767,9 @@ function snapshotGlobals(){
     RESOLUTIONS: JSON.stringify(RESOLUTIONS),
     PAYMENTS_DB: JSON.stringify(PAYMENTS_DB),
     DEBTS_DB: JSON.stringify(DEBTS_DB),
+    PURCHASE_PAYMENTS_DB: JSON.stringify(PURCHASE_PAYMENTS_DB),
+    PURCHASE_DEBTS_DB: JSON.stringify(PURCHASE_DEBTS_DB),
+    EXPENSES_DB: JSON.stringify(EXPENSES_DB),
     TOMBSTONES_DB: JSON.stringify(TOMBSTONES_DB)
   };
 }
@@ -1464,6 +1779,9 @@ function restoreGlobals(snap){
   RESOLUTIONS = JSON.parse(snap.RESOLUTIONS);
   PAYMENTS_DB = JSON.parse(snap.PAYMENTS_DB);
   DEBTS_DB = JSON.parse(snap.DEBTS_DB);
+  if(snap.PURCHASE_PAYMENTS_DB) PURCHASE_PAYMENTS_DB = JSON.parse(snap.PURCHASE_PAYMENTS_DB);
+  if(snap.PURCHASE_DEBTS_DB) PURCHASE_DEBTS_DB = JSON.parse(snap.PURCHASE_DEBTS_DB);
+  if(snap.EXPENSES_DB) EXPENSES_DB = JSON.parse(snap.EXPENSES_DB);
   if(snap.TOMBSTONES_DB) TOMBSTONES_DB = JSON.parse(snap.TOMBSTONES_DB);
 }
 function applyMergedValue(key, value){
@@ -1473,6 +1791,9 @@ function applyMergedValue(key, value){
   else if(key===RESOLUTIONS_STORAGE_KEY) RESOLUTIONS = value;
   else if(key===PAYMENTS_STORAGE_KEY) PAYMENTS_DB = value;
   else if(key===DEBTS_STORAGE_KEY) DEBTS_DB = value;
+  else if(key===PURCHASE_PAYMENTS_STORAGE_KEY) PURCHASE_PAYMENTS_DB = value;
+  else if(key===PURCHASE_DEBTS_STORAGE_KEY) PURCHASE_DEBTS_DB = value;
+  else if(key===EXPENSES_STORAGE_KEY) EXPENSES_DB = value;
   else if(key===TOMBSTONES_STORAGE_KEY) TOMBSTONES_DB = value;
   else return;
   refreshAllViews();
@@ -1557,6 +1878,39 @@ function mergeStores(key, local, remote){
       Object.keys(merged).forEach(id=>{ if(tomb[id]) delete merged[id]; });
       return merged;
     }
+    if(key===PURCHASE_PAYMENTS_STORAGE_KEY){
+      const tomb = TOMBSTONES_DB.purchasePayments||{};
+      const merged = {...remote, ...local};
+      Object.keys(merged).forEach(id=>{ if(tomb[id]) delete merged[id]; });
+      return merged;
+    }
+    if(key===PURCHASE_DEBTS_STORAGE_KEY){
+      const tomb = TOMBSTONES_DB.purchaseDebts||{};
+      const merged = {...remote, ...local};
+      Object.keys(merged).forEach(id=>{ if(tomb[id]) delete merged[id]; });
+      return merged;
+    }
+    if(key===EXPENSES_STORAGE_KEY){
+      const dateTomb = TOMBSTONES_DB.datesExpenses||{};
+      const itemTomb = TOMBSTONES_DB.expensesItems||{};
+      const dates = new Set([...Object.keys(local), ...Object.keys(remote)]);
+      const merged = {};
+      dates.forEach(date=>{
+        const l = local[date], r = remote[date];
+        const tombTime = dateTomb[date];
+        if(tombTime){
+          const cAt = Math.max((l && l.createdAt)||0, (r && r.createdAt)||0);
+          if(cAt <= tombTime) return;
+        }
+        if(!l){ merged[date] = r; return; }
+        if(!r){ merged[date] = l; return; }
+        const items = unionMergeById(l.items, r.items, itemTomb);
+        merged[date] = {...r, ...l, items};
+        const cAt2 = Math.max((l && l.createdAt)||0, (r && r.createdAt)||0);
+        if(cAt2) merged[date].createdAt = cAt2;
+      });
+      return merged;
+    }
     if(key===TOMBSTONES_STORAGE_KEY){
       return {
         merchants: {...(remote.merchants||{}), ...(local.merchants||{})},
@@ -1564,8 +1918,12 @@ function mergeStores(key, local, remote){
         items: {...(remote.items||{}), ...(local.items||{})},
         debts: {...(remote.debts||{}), ...(local.debts||{})},
         payments: {...(remote.payments||{}), ...(local.payments||{})},
+        purchasePayments: {...(remote.purchasePayments||{}), ...(local.purchasePayments||{})},
+        purchaseDebts: {...(remote.purchaseDebts||{}), ...(local.purchaseDebts||{})},
+        expensesItems: {...(remote.expensesItems||{}), ...(local.expensesItems||{})},
         datesPurchases: {...(remote.datesPurchases||{}), ...(local.datesPurchases||{})},
         datesSales: {...(remote.datesSales||{}), ...(local.datesSales||{})},
+        datesExpenses: {...(remote.datesExpenses||{}), ...(local.datesExpenses||{})},
         resolutions: {...(remote.resolutions||{}), ...(local.resolutions||{})}
       };
     }
@@ -1580,6 +1938,13 @@ function refreshAllViews(){
   try{ renderInventoryList(); }catch(e){}
   try{ renderPaymentsPage(); }catch(e){}
   try{ renderDebtsPage(); }catch(e){}
+  try{ renderPurchasePaymentsPage(); }catch(e){}
+  try{ renderPurchaseDebtsPage(); }catch(e){}
+  try{ renderExpensesLists(); }catch(e){}
+  try{ renderPartnersPage(); }catch(e){}
+  try{ renderCompanyPage(); }catch(e){}
+  try{ if(currentPartnerName) renderPartnerDetail(); }catch(e){}
+  try{ if(currentCompanyDate) renderCompanyDetail(); }catch(e){}
   try{ if(currentDetailDate) renderDetailTable(); }catch(e){}
   try{ if(currentSalesDetailDate) renderSalesDetailTable(); }catch(e){}
   try{ if(currentInventoryDetailDate) renderInventoryDetailTable(); }catch(e){}
@@ -1793,6 +2158,42 @@ async function saveDebtsDB(){
     return !!res;
   }catch(e){ console.error("storage error", e); return false; }
 }
+async function loadPurchasePaymentsDB(){
+  try{
+    const res = await window.storage.get(PURCHASE_PAYMENTS_STORAGE_KEY, SHARED);
+    if(res && res.value) PURCHASE_PAYMENTS_DB = JSON.parse(res.value);
+  }catch(e){ console.warn(e); PURCHASE_PAYMENTS_DB = PURCHASE_PAYMENTS_DB || {}; }
+}
+async function savePurchasePaymentsDB(){
+  try{
+    const res = await window.storage.set(PURCHASE_PAYMENTS_STORAGE_KEY, JSON.stringify(PURCHASE_PAYMENTS_DB), SHARED);
+    return !!res;
+  }catch(e){ console.warn(e); return false; }
+}
+async function loadPurchaseDebtsDB(){
+  try{
+    const res = await window.storage.get(PURCHASE_DEBTS_STORAGE_KEY, SHARED);
+    if(res && res.value) PURCHASE_DEBTS_DB = JSON.parse(res.value);
+  }catch(e){ console.warn(e); PURCHASE_DEBTS_DB = PURCHASE_DEBTS_DB || {}; }
+}
+async function savePurchaseDebtsDB(){
+  try{
+    const res = await window.storage.set(PURCHASE_DEBTS_STORAGE_KEY, JSON.stringify(PURCHASE_DEBTS_DB), SHARED);
+    return !!res;
+  }catch(e){ console.warn(e); return false; }
+}
+async function loadExpensesDB(){
+  try{
+    const res = await window.storage.get(EXPENSES_STORAGE_KEY, SHARED);
+    if(res && res.value) EXPENSES_DB = JSON.parse(res.value);
+  }catch(e){ console.warn(e); EXPENSES_DB = EXPENSES_DB || {}; }
+}
+async function saveExpensesDB(){
+  try{
+    const res = await window.storage.set(EXPENSES_STORAGE_KEY, JSON.stringify(EXPENSES_DB), SHARED);
+    return !!res;
+  }catch(e){ console.warn(e); return false; }
+}
 async function loadTombstonesDB(){
   try{
     const res = await window.storage.get(TOMBSTONES_STORAGE_KEY, SHARED);
@@ -1805,6 +2206,10 @@ async function loadTombstonesDB(){
   if(!TOMBSTONES_DB.payments) TOMBSTONES_DB.payments = {};
   if(!TOMBSTONES_DB.datesPurchases) TOMBSTONES_DB.datesPurchases = {};
   if(!TOMBSTONES_DB.datesSales) TOMBSTONES_DB.datesSales = {};
+  if(!TOMBSTONES_DB.purchasePayments) TOMBSTONES_DB.purchasePayments = {};
+  if(!TOMBSTONES_DB.purchaseDebts) TOMBSTONES_DB.purchaseDebts = {};
+  if(!TOMBSTONES_DB.expensesItems) TOMBSTONES_DB.expensesItems = {};
+  if(!TOMBSTONES_DB.datesExpenses) TOMBSTONES_DB.datesExpenses = {};
   if(!TOMBSTONES_DB.resolutions) TOMBSTONES_DB.resolutions = {};
 }
 async function saveTombstonesDB(){
@@ -1815,6 +2220,322 @@ async function saveTombstonesDB(){
 }
 
 /* ============ NAVIGATION ============ */
+/* ============ المصاريف العامة ============ */
+let expenseRowsSeq = 0;
+function addExpenseRow(){
+  expenseRowsSeq++;
+  const wrap = document.getElementById("expense-rows");
+  const idx = expenseRowsSeq;
+  const div = document.createElement("div");
+  div.className = "card";
+  div.style.cssText = "padding:12px;margin-bottom:10px;background:rgba(255,255,255,.6);";
+  div.id = "exp-row-"+idx;
+  div.innerHTML = `
+    <div class="field">
+      <label>نوع المصروف</label>
+      <input type="text" id="exp-type-${idx}" placeholder="مثال: عمال، خضار، كهرباء، أجرة محل...">
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label>المبلغ (شيكل)</label>
+        <input type="number" id="exp-amount-${idx}" placeholder="0" min="0" step="0.1">
+      </div>
+      <div class="field">
+        <label>اسم المسدِّد (الشريك)</label>
+        <select id="exp-partner-${idx}"><option value="">اختر الشريك</option>${partnerOptionsHtml()}</select>
+      </div>
+    </div>
+    <button class="btn btn-ghost" style="color:var(--danger);border-color:var(--danger);" onclick="removeExpenseRow(${idx})">🗑️ حذف هذا المصروف</button>`;
+  wrap.appendChild(div);
+  updateExpenseRowDeleteButtons();
+}
+function removeExpenseRow(idx){
+  const el = document.getElementById("exp-row-"+idx);
+  if(el) el.remove();
+  // يجب أن يبقى مصروف واحد على الأقل في الصفحة
+  if(document.querySelectorAll("#expense-rows > div").length===0) addExpenseRow();
+  updateExpenseRowDeleteButtons();
+}
+function updateExpenseRowDeleteButtons(){
+  const rows = document.querySelectorAll("#expense-rows > div");
+  rows.forEach(r=>{
+    const btn = r.querySelector("button");
+    if(btn) btn.style.display = rows.length>1 ? "inline-flex" : "none";
+  });
+}
+function initExpensesPage(){
+  const key = todayKey();
+  document.getElementById("expenses-date-line").textContent = `${dayNameOf(key)} • ${formatDateArabic(key)}`;
+  const wrap = document.getElementById("expense-rows");
+  if(wrap.children.length===0) addExpenseRow();
+  renderExpensesLists();
+}
+function expensesTotalForDay(date){
+  const day = EXPENSES_DB[date];
+  if(!day) return 0;
+  return Math.round((day.items||[]).reduce((s,it)=>s+it.amount,0)*1000)/1000;
+}
+async function saveExpenses(){
+  const rows = document.querySelectorAll("#expense-rows > div");
+  const entries = [];
+  for(const r of rows){
+    const idx = r.id.replace("exp-row-","");
+    const type = (document.getElementById("exp-type-"+idx).value||"").trim();
+    const amount = parseFloat(document.getElementById("exp-amount-"+idx).value)||0;
+    const partner = document.getElementById("exp-partner-"+idx).value;
+    if(!type && amount<=0 && !partner) continue; // صف فارغ بالكامل: يُتجاهل
+    if(!type){ showToast("الرجاء إدخال نوع المصروف في كل الصفوف"); return; }
+    if(amount<=0){ showToast(`الرجاء إدخال مبلغ صحيح لمصروف "${type}"`); return; }
+    if(!partner){ showToast(`الرجاء اختيار الشريك المسدِّد لمصروف "${type}"`); return; }
+    entries.push({type, amount, partner});
+  }
+  if(entries.length===0){ showToast("الرجاء إدخال مصروف واحد على الأقل"); return; }
+
+  const _snap = snapshotGlobals();
+  const key = todayKey();
+  if(!EXPENSES_DB[key]){
+    EXPENSES_DB[key] = { day: dayNameOf(key), items: [], createdAt: Date.now() };
+    if(TOMBSTONES_DB.datesExpenses && TOMBSTONES_DB.datesExpenses[key]){
+      delete TOMBSTONES_DB.datesExpenses[key];
+      saveTombstonesDB();
+    }
+  }
+  if(!EXPENSES_DB[key].createdAt) EXPENSES_DB[key].createdAt = Date.now();
+  const newItems = entries.map(e=> ({id: genId(), type: e.type, amount: e.amount, partner: e.partner, t: Date.now()}));
+  newItems.forEach(it=> EXPENSES_DB[key].items.push(it));
+  const ok = await saveExpensesDB();
+  if(!ok){ restoreGlobals(_snap); showConnErrorToast(); return; }
+  newItems.forEach(it=> journalAppend({kind:"expense", date:key, item:it}));
+
+  // تفريغ الصفوف والعودة لصف واحد فارغ
+  document.getElementById("expense-rows").innerHTML = "";
+  addExpenseRow();
+  renderExpensesLists();
+  showToast(`تم حفظ ${newItems.length} مصروف — إجمالي مصاريف اليوم: ${fmtMoney(expensesTotalForDay(key))}`);
+}
+function renderExpensesLists(){
+  const key = todayKey();
+  document.getElementById("expenses-day-label").textContent = `إجمالي مصاريف اليوم — ${dayNameOf(key)} ${formatDateArabic(key)}`;
+  document.getElementById("expenses-day-total").textContent = fmtMoney(expensesTotalForDay(key));
+
+  const todayWrap = document.getElementById("expenses-today-list");
+  const day = EXPENSES_DB[key];
+  if(!day || !(day.items||[]).length){
+    todayWrap.innerHTML = `<div class="empty-state"><div class="ico">💸</div><div>لا توجد مصاريف محفوظة لليوم بعد</div></div>`;
+  } else {
+    todayWrap.innerHTML = `<div class="card" style="padding:0;overflow:hidden;"><div class="table-wrap"><table>
+      <thead><tr><th>نوع المصروف</th><th>المبلغ</th><th>المسدِّد (الشريك)</th></tr></thead>
+      <tbody>${day.items.map(it=>`<tr><td>${it.type}</td><td class="num">${fmtMoney(it.amount)}</td><td>${it.partner} <span style="color:var(--success);font-weight:800;">+${fmtMoney(it.amount)}</span></td></tr>`).join("")}</tbody>
+    </table></div></div>`;
+  }
+
+  const archWrap = document.getElementById("expenses-archive-list");
+  const keys = Object.keys(EXPENSES_DB).sort((a,b)=> b.localeCompare(a));
+  if(keys.length===0){
+    archWrap.innerHTML = `<div class="empty-state"><div class="ico">📚</div><div>لا يوجد أرشيف مصاريف بعد</div></div>`;
+    return;
+  }
+  archWrap.innerHTML = keys.map(k=>{
+    const d = EXPENSES_DB[k];
+    const items = d.items||[];
+    return `<div class="card" style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+        <b>${d.day} • ${formatDateArabic(k)}</b>
+        <span style="color:var(--sea-glow);font-weight:900;">${fmtMoney(expensesTotalForDay(k))}</span>
+      </div>
+      <div style="margin-top:6px;font-size:13px;color:var(--ink-soft);">
+        ${items.map(it=>`${it.type}: ${fmtMoney(it.amount)} (${it.partner})`).join(" • ")}
+      </div>
+    </div>`;
+  }).join("");
+}
+
+/* ============ الشركاء: العمليات والرصيد ============ */
+/* قواعد الرصيد (الحاسمة): شراء/سداد دين شراء/سداد مصروف = + (له على الشركة)
+   بيع (قبض من زبون)/سداد دين مبيعات (قبض) = − (عليه للشركة) */
+function computePartnerOps(name){
+  const ops = [];
+  Object.values(PURCHASE_PAYMENTS_DB).forEach(p=>{
+    if(p.partner!==name) return;
+    const isSettle = !!p.debtId;
+    ops.push({ date: p.date, sort: p.id, sign: +1, amount: p.amountPaid,
+      label: isSettle ? "سداد دين شراء" : "شراء (دفع لتاجر)",
+      details: `${p.merchantName} — ${p.itemType}${p.qty?` ${fmtQty(p.qty)}×${fmtMoney(p.price)}`:""} • الكلي ${fmtMoney(p.itemAmount)}` });
+  });
+  Object.values(PAYMENTS_DB).forEach(p=>{
+    if(p.partner!==name) return;
+    const isSettle = !!p.debtId;
+    ops.push({ date: p.date, sort: p.id, sign: -1, amount: p.amountPaid,
+      label: isSettle ? "قبض سداد دين مبيعات" : "بيع (قبض من زبون)",
+      details: `${p.customerName} — ${p.itemType}${p.grillEnabled?" 🔥":""} ${fmtQty(p.qty)}×${fmtMoney(p.price)} • الكلي ${fmtMoney(p.itemAmount)}` });
+  });
+  Object.keys(EXPENSES_DB).forEach(date=>{
+    (EXPENSES_DB[date].items||[]).forEach(it=>{
+      if(it.partner!==name) return;
+      ops.push({ date, sort: it.id, sign: +1, amount: it.amount, label: "سداد مصروف", details: it.type });
+    });
+  });
+  ops.sort((a,b)=> (b.date||"").localeCompare(a.date||"") || (b.sort||"").localeCompare(a.sort||""));
+  return ops;
+}
+function computePartnerBalance(name){
+  const ops = computePartnerOps(name);
+  return Math.round(ops.reduce((s,o)=> s + o.sign*o.amount, 0)*1000)/1000;
+}
+function renderPartnersPage(){
+  const wrap = document.getElementById("partners-list");
+  wrap.innerHTML = PARTNERS.map(name=>{
+    const bal = computePartnerBalance(name);
+    const color = bal>0.0001 ? "var(--success)" : bal<-0.0001 ? "var(--danger)" : "var(--ink-soft)";
+    const sign = bal>0.0001 ? "+" : "";
+    return `<button class="card" style="width:100%;text-align:inherit;cursor:pointer;display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;border:none;" onclick="openPartnerDetail('${name.replace(/'/g,"\\'")}')">
+      <span style="font-weight:900;font-size:16px;">👤 ${name}</span>
+      <span style="font-weight:900;color:${color};">${sign}${fmtMoney(bal)}</span>
+    </button>`;
+  }).join("");
+}
+let currentPartnerName = null;
+function openPartnerDetail(name){
+  currentPartnerName = name;
+  renderPartnerDetail();
+  goTo("partner-detail");
+}
+function renderPartnerDetail(){
+  const name = currentPartnerName;
+  if(!name) return;
+  document.getElementById("partner-detail-title").textContent = `👤 ${name}`;
+  const ops = computePartnerOps(name);
+  const bal = computePartnerBalance(name);
+  const balEl = document.getElementById("partner-balance");
+  balEl.textContent = (bal>0.0001?"+":"") + fmtMoney(bal);
+  balEl.style.color = bal>0.0001 ? "var(--success)" : bal<-0.0001 ? "var(--danger)" : "";
+  const tbody = document.getElementById("partner-ops-tbody");
+  const emptyEl = document.getElementById("partner-ops-empty");
+  const card = tbody.closest(".card");
+  if(ops.length===0){
+    tbody.innerHTML=""; card.style.display="none"; emptyEl.style.display="block"; return;
+  }
+  card.style.display="block"; emptyEl.style.display="none";
+  tbody.innerHTML = ops.map(o=>`
+    <tr>
+      <td>${dayNameOf(o.date)}<div class="cell-date-day">${formatDateArabic(o.date)}</div></td>
+      <td>${o.label}</td>
+      <td>${o.details}</td>
+      <td class="num" style="color:${o.sign>0?"var(--success)":"var(--danger)"};font-weight:800;">${o.sign>0?"+":"−"}${fmtMoney(o.amount)}</td>
+    </tr>`).join("");
+}
+
+/* ============ حساب الشركة ============ */
+function salesTotalForDay(date){
+  const d = SALES_DB[date]; if(!d) return 0;
+  return Math.round((d.customers||[]).reduce((s,c)=> s + c.items.reduce((s2,it)=>s2+it.amount,0), 0)*1000)/1000;
+}
+function purchasesTotalForDay(date){
+  const d = DB[date]; if(!d) return 0;
+  return Math.round((d.merchants||[]).reduce((s,m)=> s + m.items.reduce((s2,it)=>s2+it.amount,0), 0)*1000)/1000;
+}
+/* سعر شراء الصنف في يومه = إجمالي مبلغه ÷ إجمالي كميته (متوسط مرجّح) */
+function dayUnitPrice(date, type){
+  const d = DB[date]; if(!d) return 0;
+  let q=0, a=0;
+  (d.merchants||[]).forEach(m=> m.items.forEach(it=>{ if(it.type===type){ q+=it.qty; a+=it.amount; } }));
+  return q>0 ? a/q : 0;
+}
+/* قيمة المتبقي لليوم = Σ المتبقي × سعر شرائه (المُتلَف لا قيمة له) */
+function leftoverValueForDay(date){
+  let sum = 0;
+  typesForDay(date).forEach(type=>{
+    const remaining = getRemainingForDay(date, type);
+    if(remaining<=0.0001) return;
+    const res = RESOLUTIONS[date] && RESOLUTIONS[date][type];
+    if(res && res.status==="destroyed") return;
+    sum += remaining * dayUnitPrice(date, type);
+  });
+  return Math.round(sum*1000)/1000;
+}
+/* صافي ربح اليوم = مبيعات اليوم + قيمة المتبقي − مشتريات اليوم − مصاريف اليوم */
+function netProfitForDay(date){
+  return Math.round((salesTotalForDay(date) + leftoverValueForDay(date) - purchasesTotalForDay(date) - expensesTotalForDay(date))*1000)/1000;
+}
+function companyAllDates(){
+  const set = new Set([...Object.keys(DB), ...Object.keys(SALES_DB), ...Object.keys(EXPENSES_DB)]);
+  return Array.from(set).sort((a,b)=> b.localeCompare(a));
+}
+function renderCompanyPage(){
+  const wrap = document.getElementById("company-days-list");
+  const dates = companyAllDates();
+  if(dates.length===0){
+    wrap.innerHTML = `<div class="empty-state"><div class="ico">🏦</div><div>لا توجد بيانات بعد — ابدأ بتسجيل المشتريات والمبيعات</div></div>`;
+    return;
+  }
+  wrap.innerHTML = dates.map(k=>{
+    const net = netProfitForDay(k);
+    const color = net>0.0001 ? "var(--success)" : net<-0.0001 ? "var(--danger)" : "var(--ink-soft)";
+    return `<button class="card" style="width:100%;text-align:inherit;cursor:pointer;margin-bottom:10px;border:none;" onclick="openCompanyDetail('${k}')">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+        <b>📅 ${dayNameOf(k)} • ${formatDateArabic(k)}</b>
+        <span style="font-weight:900;color:${color};">صافي الربح: ${fmtMoney(net)}</span>
+      </div>
+      <div style="margin-top:6px;font-size:13px;color:var(--ink-soft);">
+        مبيعات: ${fmtMoney(salesTotalForDay(k))} • مشتريات: ${fmtMoney(purchasesTotalForDay(k))} • مصاريف: ${fmtMoney(expensesTotalForDay(k))} • قيمة المتبقي: ${fmtMoney(leftoverValueForDay(k))}
+      </div>
+    </button>`;
+  }).join("");
+}
+let currentCompanyDate = null;
+function openCompanyDetail(date){
+  currentCompanyDate = date;
+  renderCompanyDetail();
+  goTo("company-detail");
+}
+function renderCompanyDetail(){
+  const date = currentCompanyDate;
+  if(!date) return;
+  document.getElementById("company-detail-title").textContent = `🏦 ${dayNameOf(date)} • ${formatDateArabic(date)}`;
+  const sales = salesTotalForDay(date), purchases = purchasesTotalForDay(date),
+        expenses = expensesTotalForDay(date), leftover = leftoverValueForDay(date),
+        net = netProfitForDay(date);
+  const netEl = document.getElementById("company-net-profit");
+  netEl.textContent = fmtMoney(net);
+  netEl.style.color = net<-0.0001 ? "var(--danger)" : "";
+  document.getElementById("company-breakdown-tbody").innerHTML = `
+    <tr><td>إجمالي مبيعات هذا اليوم <span style="color:var(--success);">➕</span></td><td class="num">${fmtMoney(sales)}</td></tr>
+    <tr><td>قيمة المتبقي (من صفحة الجرد) <span style="color:var(--success);">➕</span></td><td class="num">${fmtMoney(leftover)}</td></tr>
+    <tr><td>إجمالي مشتريات هذا اليوم <span style="color:var(--danger);">➖</span></td><td class="num">${fmtMoney(purchases)}</td></tr>
+    <tr><td>إجمالي المصاريف لهذا اليوم <span style="color:var(--danger);">➖</span></td><td class="num">${fmtMoney(expenses)}</td></tr>
+    <tr style="font-weight:900;"><td>صافي الربح لهذا اليوم</td><td class="num">${fmtMoney(net)}</td></tr>`;
+  const checksWrap = document.getElementById("company-partner-checks");
+  checksWrap.innerHTML = PROFIT_PARTNERS.map(name=>`
+    <label class="checkbox-field" style="margin-bottom:6px;">
+      <input type="checkbox" class="company-partner-check" value="${name}" onchange="renderProfitSplit()">
+      <span class="cb-icon">👤</span>
+      <span class="cb-label">${name}</span>
+    </label>`).join("");
+  renderProfitSplit();
+}
+function renderProfitSplit(){
+  const date = currentCompanyDate;
+  const selected = Array.from(document.querySelectorAll(".company-partner-check:checked")).map(c=>c.value);
+  const tbody = document.getElementById("company-split-tbody");
+  const card = document.getElementById("company-split-card");
+  if(selected.length===0){
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--ink-soft);">اختر الشركاء من الأعلى لعرض توزيع الربح</td></tr>`;
+    return;
+  }
+  const net = netProfitForDay(date);
+  const share = Math.round((net/selected.length)*1000)/1000;
+  tbody.innerHTML = selected.map(name=>{
+    const bal = computePartnerBalance(name);
+    const final = Math.round((share + bal)*1000)/1000;
+    return `<tr>
+      <td>👤 ${name}</td>
+      <td class="num">${fmtMoney(share)}</td>
+      <td class="num" style="color:${bal>0.0001?"var(--success)":bal<-0.0001?"var(--danger)":""};">${bal>0.0001?"+":""}${fmtMoney(bal)}</td>
+      <td class="num" style="font-weight:900;">${fmtMoney(final)}</td>
+    </tr>`;
+  }).join("");
+}
+
 function goTo(view){
   document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
   document.getElementById("view-"+view).classList.add("active");
@@ -1835,6 +2556,11 @@ function goTo(view){
   if(view==="inventory"){ renderInventoryList(); }
   if(view==="payments"){ renderPaymentsPage(); }
   if(view==="debts"){ renderDebtsPage(); }
+  if(view==="purchase-payments"){ renderPurchasePaymentsPage(); }
+  if(view==="purchase-debts"){ renderPurchaseDebtsPage(); }
+  if(view==="expenses"){ initExpensesPage(); }
+  if(view==="partners"){ renderPartnersPage(); }
+  if(view==="company"){ renderCompanyPage(); }
 }
 
 /* ============ PURCHASES FORM ============ */
@@ -1880,6 +2606,79 @@ function renderTodayMerchantItems(name){
     </div>`).join("");
   box.style.display = "block";
 }
+function partnerOptionsHtml(selected){
+  return PARTNERS.map(p=>`<option value="${p}" ${p===selected?"selected":""}>${p}</option>`).join("");
+}
+function populatePartnerSelect(sel, placeholder){
+  if(!sel) return;
+  const current = sel.value;
+  sel.innerHTML = `<option value="">${placeholder||"اختر الشريك"}</option>` + partnerOptionsHtml();
+  if(current) sel.value = current;
+}
+function onPurchasePayKindChange(){
+  const val = document.getElementById("in-pay-kind").value;
+  document.getElementById("purchase-partial-field").style.display = val==="partial" ? "block" : "none";
+  if(val!=="partial"){
+    document.getElementById("in-partial-amount").value="";
+    document.getElementById("purchase-partial-hint").textContent="";
+  } else { onPurchasePartialInput(); }
+}
+function onPurchasePartialInput(){
+  const amt = calcAmount();
+  const val = parseFloat(document.getElementById("in-partial-amount").value)||0;
+  const hint = document.getElementById("purchase-partial-hint");
+  if(val<=0 || amt<=0){ hint.textContent=""; return; }
+  if(val > amt){
+    hint.textContent = `المدفوع أكثر من المطلوب — سيصبح التاجر مدينًا للشركة بـ ${fmtMoney(val-amt)} (+)`;
+  } else if(val === amt){
+    hint.textContent = "المبلغ يساوي المطلوب — سيُسجَّل سدادًا كاملًا";
+  } else {
+    hint.textContent = `الباقي دينًا علينا للتاجر: ${fmtMoney(amt-val)}`;
+  }
+}
+
+/* سجلات سداد المشتريات (المدفوع للتجار) وديون المشتريات (ديوننا للتجار) */
+async function addPurchasePaymentRecord(data){
+  const id = genId();
+  PURCHASE_PAYMENTS_DB[id] = {
+    id, date: data.date, merchantName: data.merchantName, itemType: data.itemType,
+    qty: data.qty||0, price: data.price||0, itemAmount: data.itemAmount,
+    paymentKind: data.paymentKind, amountPaid: data.amountPaid, partner: data.partner||null,
+    sourceDate: data.sourceDate||null, sourceItemId: data.sourceItemId||null, debtId: data.debtId||null
+  };
+  const _ok = await savePurchasePaymentsDB();
+  if(_ok){ journalAppend({kind:"ppayment", rec: PURCHASE_PAYMENTS_DB[id]}); }
+  return _ok;
+}
+async function addPurchaseDebtRecord(data){
+  const id = genId();
+  PURCHASE_DEBTS_DB[id] = {
+    id, merchantName: data.merchantName, itemType: data.itemType,
+    qty: data.qty||0, price: data.price||0, itemAmount: data.itemAmount,
+    debtKind: data.debtKind, remainingAmount: data.remainingAmount,
+    createdDate: data.createdDate, lastUpdateDate: data.createdDate,
+    partner: data.partner||null,
+    sourceDate: data.sourceDate||null, sourceItemId: data.sourceItemId||null,
+    settled: false, history: []
+  };
+  const _ok = await savePurchaseDebtsDB();
+  if(_ok){ journalAppend({kind:"pdebt", rec: PURCHASE_DEBTS_DB[id]}); }
+  return _ok;
+}
+/* مجموع المدفوع لتاجر معيّن عن مشتريات يوم معيّن (الدفعات الأولية + التسديدات اللاحقة) */
+function merchantPaidFor(date, merchantName){
+  let sum = 0;
+  Object.values(PURCHASE_PAYMENTS_DB).forEach(p=>{
+    if(p.sourceDate===date && p.merchantName===merchantName) sum += p.amountPaid;
+  });
+  return Math.round(sum*1000)/1000;
+}
+function merchantOpenDebts(date, merchantName){
+  return Object.values(PURCHASE_DEBTS_DB)
+    .filter(d=> d.sourceDate===date && d.merchantName===merchantName && !d.settled && d.remainingAmount>0.0001)
+    .sort((a,b)=> (a.createdDate||"").localeCompare(b.createdDate||"") || (a.id||"").localeCompare(b.id||""));
+}
+
 async function addPurchase(){
   const merchant = document.getElementById("in-merchant").value.trim();
   const type = getSelectedType();
@@ -1887,9 +2686,16 @@ async function addPurchase(){
   const price = parseFloat(document.getElementById("in-price").value)||0;
   const amount = qty*price;
 
+  const buyer = document.getElementById("in-buyer").value;
+  const payKindSel = document.getElementById("in-pay-kind").value;
+  let partialVal = parseFloat(document.getElementById("in-partial-amount").value)||0;
+
   if(!merchant){ showToast("الرجاء إدخال اسم التاجر"); return; }
   if(!type){ showToast("الرجاء اختيار الصنف"); return; }
   if(qty<=0 || price<=0){ showToast("الرجاء إدخال الكمية والسعر"); return; }
+  if(!buyer){ showToast("الرجاء اختيار المشتري (الشريك)"); return; }
+  if(!payKindSel){ showToast("الرجاء اختيار نوع الشراء"); return; }
+  if(payKindSel==="partial" && partialVal<=0){ showToast("الرجاء إدخال مبلغ السداد الجزئي"); return; }
 
   const _snap = snapshotGlobals();
   const key = todayKey();
@@ -1905,11 +2711,33 @@ async function addPurchase(){
   // أيام قديمة أُنشئت قبل هذا الإصلاح بلا ختم زمني: نختمها الآن لتصبح محمية
   if(!DB[key].createdAt) DB[key].createdAt = Date.now();
   // نفس التاجر (بالاسم) يُلحق به الصنف الجديد بدل إنشاء تاجر مكرر
+  /* تحديد المدفوع فعليًا حسب نوع الشراء:
+     كامل = كامل المبلغ • جزئي = المبلغ المُدخل (وإن ساوى أو تجاوز المطلوب يُعامل كسداد كامل
+     مع اعتبار الزيادة دَينًا للتاجر علينا... أي التاجر مدين للشركة +) • دين = صفر */
+  let paidNow = 0, effKind = payKindSel;
+  if(payKindSel==="full"){ paidNow = amount; }
+  else if(payKindSel==="partial"){
+    paidNow = partialVal;
+    if(paidNow >= amount) effKind = "full"; // دفع المطلوب أو أكثر (الزيادة تجعل التاجر مدينًا +)
+  }
+
   const m = getOrCreateMerchant(DB[key], merchant);
-  const _newItem = {id: genId(), type, qty, price, amount};
+  const _newItem = {id: genId(), type, qty, price, amount, buyer, payKind: effKind, paidAmount: paidNow};
   m.items.push(_newItem);
-  const ok = await saveDB();
+  let ok = await saveDB();
   if(ok){ journalAppend({kind:"purchase", date:key, ownerId:m.id, ownerName:m.name, item:_newItem}); }
+
+  // سجلات السداد والدين المرافقة لعملية الشراء
+  const recordBase = { merchantName: m.name, itemType: type, qty, price, itemAmount: amount,
+                       sourceDate: key, sourceItemId: _newItem.id, partner: buyer };
+  if(ok && paidNow > 0){
+    ok = await addPurchasePaymentRecord({...recordBase, paymentKind: effKind==="full"?"full":"partial", amountPaid: paidNow, date: key});
+  }
+  const remainingDebt = Math.round((amount - paidNow)*1000)/1000;
+  if(ok && remainingDebt > 0.0001){
+    ok = await addPurchaseDebtRecord({...recordBase, debtKind: paidNow>0 ? "partial" : "debt", remainingAmount: remainingDebt, createdDate: key});
+  }
+
   if(!ok){
     restoreGlobals(_snap);
     renderTodayMerchantItems(merchant);
@@ -1924,9 +2752,16 @@ async function addPurchase(){
   document.getElementById("in-qty").value="";
   document.getElementById("in-price").value="";
   document.getElementById("amt-display").textContent="0 ₪";
+  document.getElementById("in-pay-kind").value="";
+  document.getElementById("in-partial-amount").value="";
+  document.getElementById("purchase-partial-field").style.display="none";
+  document.getElementById("purchase-partial-hint").textContent="";
 
   renderTodayMerchantItems(merchant);
-  showToast(`تم إضافة الصنف لـ "${merchant}" في أرشيف المشتريات`);
+  const payMsg = effKind==="full" ? (paidNow>amount ? ` (سداد كامل — والتاجر مدين للشركة ${fmtMoney(paidNow-amount)} ➕)` : " (تم السداد الكامل ✅)")
+              : paidNow>0 ? ` (سداد جزئي 🟡 والباقي ${fmtMoney(remainingDebt)} دينًا للتاجر)`
+              : ` (سُجّل دينًا علينا للتاجر 🔴)`;
+  showToast(`تم إضافة الصنف لـ "${merchant}"${payMsg}`);
 }
 
 /* ============ SALES FORM ============ */
@@ -1985,6 +2820,9 @@ function onPaymentTypeChange(){
   const val = document.getElementById("sale-payment-type").value;
   const field = document.getElementById("partial-payment-field");
   field.style.display = val==="partial" ? "block" : "none";
+  // المدفوع له (الشريك): يظهر عند استلام مال فعلي (سداد كامل أو جزئي)
+  document.getElementById("sale-paid-to-field").style.display = (val==="full"||val==="partial") ? "block" : "none";
+  if(val!=="full" && val!=="partial"){ document.getElementById("sale-paid-to").value=""; }
   if(val!=="partial"){
     document.getElementById("sale-partial-amount").value="";
     document.getElementById("partial-remaining-hint").textContent="";
@@ -2046,6 +2884,8 @@ async function addSale(){
   if(qty<=0 || price<=0){ showToast("الرجاء إدخال الكمية والسعر"); return; }
   if(grillEnabled && (grillQty<=0 || grillPrice<=0)){ showToast("الرجاء إدخال كمية وسعر الشوي"); return; }
   if(!paymentType){ showToast("الرجاء اختيار نوع السداد"); return; }
+  const paidTo = document.getElementById("sale-paid-to").value;
+  if((paymentType==="full"||paymentType==="partial") && !paidTo){ showToast("الرجاء اختيار المدفوع له (الشريك)"); return; }
 
   const available = computeAvailableStock(type);
   if(qty > available + 1e-9){
@@ -2096,7 +2936,7 @@ async function addSale(){
   const recordBase = {
     customerName: c.name, itemType: type, qty, price,
     grillEnabled, grillQty, grillPrice, itemAmount: amount,
-    sourceSaleDate: key, sourceItemId: itemId
+    sourceSaleDate: key, sourceItemId: itemId, partner: paidTo||null
   };
   if(ok && paymentType==="full"){
     ok = await addPaymentRecord({...recordBase, paymentKind:"full", amountPaid:amount, date:key});
@@ -2128,6 +2968,8 @@ async function addSale(){
   document.getElementById("sale-partial-amount").value="";
   document.getElementById("partial-payment-field").style.display="none";
   document.getElementById("partial-remaining-hint").textContent="";
+  document.getElementById("sale-paid-to").value="";
+  document.getElementById("sale-paid-to-field").style.display="none";
 
   populateSaleTypeSelect();
   renderTodayCustomerItems(customer);
@@ -2146,6 +2988,7 @@ async function addPaymentRecord(data){
     qty: data.qty, price: data.price, grillEnabled: !!data.grillEnabled,
     grillQty: data.grillQty||0, grillPrice: data.grillPrice||0,
     itemAmount: data.itemAmount, paymentKind: data.paymentKind, amountPaid: data.amountPaid,
+    partner: data.partner||null,
     sourceSaleDate: data.sourceSaleDate||null, sourceItemId: data.sourceItemId||null,
     debtId: data.debtId||null
   };
@@ -2170,6 +3013,193 @@ async function addDebtRecord(data){
 }
 
 /* -------- صفحة السداد -------- */
+function toggleMerchantSettle(date, mid){
+  const f = document.getElementById("merchant-settle-"+mid);
+  if(f) f.style.display = f.style.display==="block" ? "none" : "block";
+}
+function onMerchantSettleTypeChange(mid){
+  const val = document.getElementById("merchant-settle-type-"+mid).value;
+  document.getElementById("merchant-settle-partial-field-"+mid).style.display = val==="partial" ? "block" : "none";
+}
+/* سداد التاجر من صف التاجر في أرشيف المشتريات: يوزَّع المبلغ على ديون شراء ذلك اليوم الأقدم فالأحدث */
+async function confirmMerchantSettle(date, mid, merchantName){
+  const kind = document.getElementById("merchant-settle-type-"+mid).value;
+  if(!kind){ showToast("الرجاء اختيار نوع السداد"); return; }
+  const partner = document.getElementById("merchant-settle-partner-"+mid).value;
+  if(!partner){ showToast("الرجاء اختيار الشريك المسدِّد"); return; }
+  const debts = merchantOpenDebts(date, merchantName);
+  const remaining = Math.round(debts.reduce((s,d)=>s+d.remainingAmount,0)*1000)/1000;
+  if(remaining<=0.0001){ showToast("لا يوجد متبقٍ لهذا التاجر"); return; }
+  let payTotal = remaining;
+  if(kind==="partial"){
+    payTotal = parseFloat(document.getElementById("merchant-settle-partial-"+mid).value)||0;
+    if(payTotal<=0){ showToast("الرجاء إدخال مبلغ السداد الجزئي"); return; }
+    if(payTotal >= remaining){ showToast("هذا المبلغ يغطي كامل المتبقي — اختر «سداد كامل» بدلًا من ذلك"); return; }
+  }
+  const _snap = snapshotGlobals();
+  const today = todayKey();
+  let left = payTotal, ok = true;
+  for(const d of debts){
+    if(left<=0.0001) break;
+    const pay = Math.min(left, d.remainingAmount);
+    ok = await addPurchasePaymentRecord({
+      merchantName: d.merchantName, itemType: d.itemType, qty: d.qty, price: d.price,
+      itemAmount: d.itemAmount, paymentKind: pay >= d.remainingAmount - 1e-9 ? "full" : "partial",
+      amountPaid: Math.round(pay*1000)/1000, partner, date: today,
+      sourceDate: d.sourceDate, sourceItemId: d.sourceItemId, debtId: d.id
+    });
+    if(!ok) break;
+    d.remainingAmount = Math.round((d.remainingAmount - pay)*1000)/1000;
+    d.lastUpdateDate = today;
+    d.history.push({date: today, amountPaid: Math.round(pay*1000)/1000, partner});
+    if(d.remainingAmount <= 0.0001){ d.remainingAmount = 0; d.settled = true; }
+    left = Math.round((left - pay)*1000)/1000;
+  }
+  if(ok) ok = await savePurchaseDebtsDB();
+  if(!ok){ restoreGlobals(_snap); showConnErrorToast(); return; }
+  renderDetailTable();
+  showToast(kind==="full" ? `تم سداد كامل المتبقي للتاجر "${merchantName}" ✅` : `تم تسجيل سداد جزئي ${fmtMoney(payTotal)} للتاجر "${merchantName}" 🟡`);
+}
+
+/* -------- صفحة سداد المشتريات -------- */
+function renderPurchasePaymentsPage(){
+  const all = Object.values(PURCHASE_PAYMENTS_DB).sort((a,b)=> (b.date||"").localeCompare(a.date||"") || (b.id||"").localeCompare(a.id||""));
+  const full = all.filter(p=>p.paymentKind==="full");
+  const partial = all.filter(p=>p.paymentKind==="partial");
+  let total = 0; all.forEach(p=> total += p.amountPaid);
+  document.getElementById("ppayments-grand-total").textContent = fmtMoney(total);
+  renderPPaymentsTable(full, "ppayments-full-tbody", "ppayments-full-empty");
+  renderPPaymentsTable(partial, "ppayments-partial-tbody", "ppayments-partial-empty");
+}
+function renderPPaymentsTable(list, tbodyId, emptyId){
+  const tbody = document.getElementById(tbodyId);
+  const emptyEl = document.getElementById(emptyId);
+  const tableWrap = tbody.closest(".card");
+  if(list.length===0){
+    tbody.innerHTML = "";
+    tableWrap.style.display = "none";
+    emptyEl.style.display = "block";
+    return;
+  }
+  tableWrap.style.display = "block";
+  emptyEl.style.display = "none";
+  tbody.innerHTML = list.map(p=>`
+    <tr>
+      <td>${dayNameOf(p.date)}<div class="cell-date-day">${formatDateArabic(p.date)}</div></td>
+      <td>${p.merchantName}</td>
+      <td>${p.itemType}<div class="cell-sub">${p.qty?`${fmtQty(p.qty)} × ${fmtMoney(p.price)}`:""}${p.sourceDate && p.sourceDate!==p.date ? ` • عن مشتريات ${formatDateArabic(p.sourceDate)}` : ""}</div></td>
+      <td class="num">${fmtMoney(p.itemAmount)}</td>
+      <td class="num" style="color:var(--success);">${fmtMoney(p.amountPaid)}</td>
+      <td>${p.partner||"—"}</td>
+    </tr>`).join("");
+}
+
+/* -------- صفحة ديون المشتريات -------- */
+function renderPurchaseDebtsPage(){
+  const all = Object.values(PURCHASE_DEBTS_DB).filter(d=> !d.settled && d.remainingAmount>0.0001);
+  const debtList = all.filter(d=>d.debtKind==="debt").sort((a,b)=> (b.lastUpdateDate||"").localeCompare(a.lastUpdateDate||""));
+  const partialList = all.filter(d=>d.debtKind==="partial").sort((a,b)=> (b.lastUpdateDate||"").localeCompare(a.lastUpdateDate||""));
+  let total = 0; all.forEach(d=> total += d.remainingAmount);
+  document.getElementById("pdebts-grand-total").textContent = fmtMoney(total);
+  renderPDebtGroup(debtList, "pdebts-full-list", "pdebts-full-empty", "debt");
+  renderPDebtGroup(partialList, "pdebts-partial-list", "pdebts-partial-empty", "partial");
+}
+function renderPDebtGroup(list, wrapId, emptyId, kindClass){
+  const wrap = document.getElementById(wrapId);
+  const emptyEl = document.getElementById(emptyId);
+  if(list.length===0){
+    wrap.innerHTML = ""; wrap.style.display = "none"; emptyEl.style.display = "block"; return;
+  }
+  wrap.style.display = "block"; emptyEl.style.display = "none";
+  wrap.innerHTML = list.map(d=>{
+    const kindLabel = d.debtKind==="debt" ? "🔴 دين كامل" : "🟡 سداد جزئي — متبقٍ";
+    const dateLine = d.lastUpdateDate && d.lastUpdateDate!==d.createdDate
+      ? `تاريخ الشراء: ${formatDateArabic(d.createdDate)} • آخر تحديث سداد: ${formatDateArabic(d.lastUpdateDate)}`
+      : `تاريخ الشراء: ${formatDateArabic(d.createdDate)}`;
+    return `
+    <div class="debt-card" id="pdebt-card-${d.id}">
+      <div class="debt-card-top">
+        <div>
+          <div class="debt-customer">🏪 ${d.merchantName}</div>
+          <div class="debt-item">${d.itemType} — ${fmtQty(d.qty)} × ${fmtMoney(d.price)}${d.partner?` • المشتري: ${d.partner}`:""}</div>
+          <div class="debt-date">${dateLine}</div>
+          <span class="debt-kind-pill ${kindClass}">${kindLabel}</span>
+        </div>
+        <div class="debt-amount">${fmtMoney(d.remainingAmount)}</div>
+      </div>
+      <button class="btn-mini settle" onclick="openPDebtSettle('${d.id}')">💳 سداد</button>
+      <div class="debt-settle-form" id="pdebt-settle-form-${d.id}" style="display:none;">
+        <div class="field">
+          <label>نوع السداد</label>
+          <select id="pdebt-settle-type-${d.id}" onchange="onPDebtSettleTypeChange('${d.id}')">
+            <option value="">اختر نوع السداد</option>
+            <option value="full">✅ سداد (المبلغ المتبقي بالكامل)</option>
+            <option value="partial">🟡 سداد جزئي</option>
+          </select>
+        </div>
+        <div class="field" id="pdebt-settle-partial-field-${d.id}" style="display:none;">
+          <label>مبلغ السداد الجزئي</label>
+          <input type="number" id="pdebt-settle-partial-${d.id}" placeholder="0" min="0" step="0.1">
+          <div class="stock-hint">المتبقي: ${fmtMoney(d.remainingAmount)}</div>
+        </div>
+        <div class="field">
+          <label>الشريك المسدِّد</label>
+          <select id="pdebt-settle-partner-${d.id}"><option value="">اختر الشريك</option>${partnerOptionsHtml()}</select>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="confirmPDebtSettle('${d.id}')">✅ تأكيد السداد</button>
+          <button class="btn btn-ghost" onclick="closePDebtSettle('${d.id}')">إلغاء</button>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+}
+function openPDebtSettle(id){
+  document.querySelectorAll("[id^='pdebt-settle-form-']").forEach(f=>{ if(f.id!==`pdebt-settle-form-${id}`) f.style.display="none"; });
+  const form = document.getElementById(`pdebt-settle-form-${id}`);
+  form.style.display = (form.style.display==="block") ? "none" : "block";
+}
+function closePDebtSettle(id){
+  const form = document.getElementById(`pdebt-settle-form-${id}`);
+  if(form) form.style.display="none";
+}
+function onPDebtSettleTypeChange(id){
+  const val = document.getElementById(`pdebt-settle-type-${id}`).value;
+  document.getElementById(`pdebt-settle-partial-field-${id}`).style.display = val==="partial" ? "block" : "none";
+}
+async function confirmPDebtSettle(id){
+  const d = PURCHASE_DEBTS_DB[id];
+  if(!d) return;
+  const kind = document.getElementById(`pdebt-settle-type-${id}`).value;
+  if(!kind){ showToast("الرجاء اختيار نوع السداد"); return; }
+  const partner = document.getElementById(`pdebt-settle-partner-${id}`).value;
+  if(!partner){ showToast("الرجاء اختيار الشريك المسدِّد"); return; }
+  const today = todayKey();
+  let pay = d.remainingAmount;
+  if(kind==="partial"){
+    pay = parseFloat(document.getElementById(`pdebt-settle-partial-${id}`).value)||0;
+    if(pay<=0){ showToast("الرجاء إدخال مبلغ السداد الجزئي"); return; }
+    if(pay >= d.remainingAmount){ showToast("هذا المبلغ يغطي كامل المتبقي — اختر «سداد» بدلًا من ذلك"); return; }
+  }
+  const _snap = snapshotGlobals();
+  let ok = await addPurchasePaymentRecord({
+    merchantName: d.merchantName, itemType: d.itemType, qty: d.qty, price: d.price,
+    itemAmount: d.itemAmount, paymentKind: pay >= d.remainingAmount - 1e-9 ? "full" : "partial",
+    amountPaid: Math.round(pay*1000)/1000, partner, date: today,
+    sourceDate: d.sourceDate, sourceItemId: d.sourceItemId, debtId: d.id
+  });
+  if(ok){
+    d.remainingAmount = Math.round((d.remainingAmount - pay)*1000)/1000;
+    d.lastUpdateDate = today;
+    d.history.push({date: today, amountPaid: Math.round(pay*1000)/1000, partner});
+    if(d.remainingAmount <= 0.0001){ d.remainingAmount = 0; d.settled = true; }
+    ok = await savePurchaseDebtsDB();
+  }
+  if(!ok){ restoreGlobals(_snap); showConnErrorToast(); return; }
+  renderPurchaseDebtsPage();
+  showToast(kind==="full" ? `تم سداد كامل المتبقي للتاجر "${d.merchantName}" ✅` : `تم تسجيل سداد جزئي ${fmtMoney(pay)} للتاجر "${d.merchantName}" 🟡`);
+}
+
 function renderPaymentsPage(){
   const all = Object.values(PAYMENTS_DB).sort((a,b)=> (b.date||"").localeCompare(a.date||"") || (b.id||"").localeCompare(a.id||""));
   const full = all.filter(p=>p.paymentKind==="full");
@@ -2198,6 +3228,7 @@ function renderPaymentsTable(list, tbodyId, emptyId){
       <td>${p.itemType}${p.grillEnabled ? ' 🔥' : ''}<div class="cell-sub">${fmtQty(p.qty)} × ${fmtMoney(p.price)}${p.grillEnabled ? ` + شوي ${fmtQty(p.grillQty)}×${fmtMoney(p.grillPrice)}` : ''}</div></td>
       <td class="num">${fmtMoney(p.itemAmount)}</td>
       <td class="num" style="color:var(--success);">${fmtMoney(p.amountPaid)}</td>
+      <td>${p.partner||"—"}</td>
     </tr>`).join("");
 }
 
@@ -2255,6 +3286,10 @@ function renderDebtCardHtml(d, kindClass){
           <input type="number" id="debt-settle-partial-${d.id}" placeholder="0" min="0" step="0.1" oninput="onDebtPartialInput('${d.id}')">
           <div class="stock-hint" id="debt-settle-hint-${d.id}"></div>
         </div>
+        <div class="field">
+          <label>المدفوع له (الشريك)</label>
+          <select id="debt-settle-partner-${d.id}"><option value="">اختر الشريك المستلم</option>${partnerOptionsHtml()}</select>
+        </div>
         <div class="btn-row">
           <button class="btn btn-primary" onclick="confirmDebtSettle('${d.id}')">✅ تأكيد السداد</button>
           <button class="btn btn-ghost" onclick="closeDebtSettle('${d.id}')">إلغاء</button>
@@ -2302,11 +3337,14 @@ async function confirmDebtSettle(id){
   if(!d) return;
   const type = document.getElementById(`debt-settle-type-${id}`).value;
   if(!type){ showToast("الرجاء اختيار نوع السداد"); return; }
+  const settlePartner = document.getElementById(`debt-settle-partner-${id}`).value;
+  if(!settlePartner){ showToast("الرجاء اختيار المدفوع له (الشريك)"); return; }
   const today = todayKey();
   const recordBase = {
     customerName: d.customerName, itemType: d.itemType, qty: d.qty, price: d.price,
     grillEnabled: d.grillEnabled, grillQty: d.grillQty, grillPrice: d.grillPrice,
-    itemAmount: d.itemAmount, sourceSaleDate: d.sourceSaleDate, sourceItemId: d.sourceItemId
+    itemAmount: d.itemAmount, sourceSaleDate: d.sourceSaleDate, sourceItemId: d.sourceItemId,
+    partner: settlePartner
   };
 
   if(type==="full"){
@@ -2418,6 +3456,15 @@ function renderDetailTable(){
     const merchantTotal = m.items.reduce((s,it)=>s+it.amount,0);
     total += merchantTotal;
 
+    const paid = merchantPaidFor(currentDetailDate, m.name);
+    const balance = Math.round((paid - merchantTotal)*1000)/1000; // سالب = دين علينا للتاجر • موجب = التاجر مدين للشركة
+    let balanceHtml;
+    if(Math.abs(balance) <= 0.0001) balanceHtml = `<span style="color:var(--success);font-weight:800;">خالص ✅</span>`;
+    else if(balance < 0) balanceHtml = `<span style="color:var(--danger);font-weight:800;">دائن: ${fmtMoney(balance)} (دين علينا)</span>`;
+    else balanceHtml = `<span style="color:var(--success);font-weight:800;">مدين: +${fmtMoney(balance)} (له عندنا زيادة دفع)</span>`;
+    const openDebts = merchantOpenDebts(currentDetailDate, m.name);
+    const remainingDebt = Math.round(openDebts.reduce((s,d)=>s+d.remainingAmount,0)*1000)/1000;
+
     const headerTr = document.createElement("tr");
     headerTr.className = "merchant-row";
     const safeName = m.name.replace(/'/g,"\\'");
@@ -2427,6 +3474,35 @@ function renderDetailTable(){
           <span class="merchant-name-tag">🏪 ${m.name}</span>
           <span class="merchant-subtotal">${fmtMoney(merchantTotal)}</span>
         </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin-top:6px;font-size:13px;">
+          <span>المدفوع: <b style="color:var(--success);">${fmtMoney(paid)}</b></span>
+          <span>دائن/مدين: ${balanceHtml}</span>
+          ${remainingDebt>0.0001 ? `<button class="btn-mini settle" onclick="toggleMerchantSettle('${currentDetailDate}','${m.id}')">💳 سداد التاجر</button>` : ``}
+        </div>
+        ${remainingDebt>0.0001 ? `
+        <div class="debt-settle-form" id="merchant-settle-${m.id}" style="display:none;margin-top:8px;">
+          <div class="field">
+            <label>نوع السداد</label>
+            <select id="merchant-settle-type-${m.id}" onchange="onMerchantSettleTypeChange('${m.id}')">
+              <option value="">اختر نوع السداد</option>
+              <option value="full">✅ سداد كامل (المتبقي: ${fmtMoney(remainingDebt)})</option>
+              <option value="partial">🟡 سداد جزئي</option>
+            </select>
+          </div>
+          <div class="field" id="merchant-settle-partial-field-${m.id}" style="display:none;">
+            <label>مبلغ السداد الجزئي</label>
+            <input type="number" id="merchant-settle-partial-${m.id}" placeholder="0" min="0" step="0.1">
+            <div class="stock-hint">المتبقي للتاجر: ${fmtMoney(remainingDebt)}</div>
+          </div>
+          <div class="field">
+            <label>الشريك المسدِّد</label>
+            <select id="merchant-settle-partner-${m.id}"><option value="">اختر الشريك</option>${partnerOptionsHtml()}</select>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-primary" onclick="confirmMerchantSettle('${currentDetailDate}','${m.id}','${safeName}')">✅ تأكيد السداد</button>
+            <button class="btn btn-ghost" onclick="toggleMerchantSettle('${currentDetailDate}','${m.id}')">إلغاء</button>
+          </div>
+        </div>` : ``}
       </td>`;
     tbody.appendChild(headerTr);
 
@@ -3005,6 +4081,7 @@ function renderInventoryDetailTable(){
   emptyEl.style.display="none";
 
   tbody.innerHTML = "";
+  let _invLeftoverTotal = 0;
   types.forEach(type=>{
     const purchased = purchasedQtyForDayType(date, type);
     const sold = soldQtyForDayType(date, type);
@@ -3027,15 +4104,24 @@ function renderInventoryDetailTable(){
         </div>`;
     }
 
+    const unit = dayUnitPrice(date, type);
+    const remVal = (remaining>0.0001 && !(res && res.status==="destroyed")) ? Math.round(remaining*unit*1000)/1000 : 0;
+    _invLeftoverTotal += remVal;
+
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td><span class="inv-type-name">${type}</span></td>
       <td class="num">${fmtQty(purchased)}</td>
       <td class="num">${fmtQty(sold)}</td>
       <td class="num">${fmtQty(remaining)}</td>
+      <td class="num" style="font-weight:800;color:var(--sea-glow);">${fmtMoney(remVal)}</td>
       <td>${actionCell}</td>`;
     tbody.appendChild(tr);
   });
+  // صف إجمالي قيمة المتبقي لليوم (يُستخدم نفسه في حساب الشركة)
+  const totalTr = document.createElement("tr");
+  totalTr.innerHTML = `<td colspan="4" style="font-weight:900;">إجمالي قيمة المتبقي لهذا اليوم</td><td class="num" style="font-weight:900;color:var(--sea-glow);">${fmtMoney(Math.round(_invLeftoverTotal*1000)/1000)}</td><td></td>`;
+  tbody.appendChild(totalTr);
 }
 async function resolveInventory(date, type, action){
   const remaining = getRemainingForDay(date, type);
@@ -3122,6 +4208,9 @@ async function reloadAllFromLocal(){
   await loadResolutions();
   await loadPaymentsDB();
   await loadDebtsDB();
+  await loadPurchasePaymentsDB();
+  await loadPurchaseDebtsDB();
+  await loadExpensesDB();
   await loadTombstonesDB();
   refreshAllViews();
   scheduleHeal(); // فحص تلقائي بعد كل جلب من السحابة
@@ -3130,6 +4219,8 @@ async function reloadAllFromLocal(){
 /* ============ BOOT ============ */
 (async function init(){
   populateTypeSelect(document.getElementById("in-type"), true);
+  populatePartnerSelect(document.getElementById("in-buyer"), "اختر الشريك المشتري");
+  populatePartnerSelect(document.getElementById("sale-paid-to"), "اختر الشريك المستلم");
   spawnBubbles();
   updateSyncBadge();
   if(!SUPABASE_CONFIGURED){
@@ -3141,6 +4232,9 @@ async function reloadAllFromLocal(){
   await loadResolutions();
   await loadPaymentsDB();
   await loadDebtsDB();
+  await loadPurchasePaymentsDB();
+  await loadPurchaseDebtsDB();
+  await loadExpensesDB();
   await loadTombstonesDB();
 
   // استرجاع قائمة "بانتظار المزامنة" من القرص: لو أُغلق المتصفح أثناء انقطاع
